@@ -88,7 +88,8 @@ class YoloV3Loss(
         private fun buildTargets(labels: NDList, predictions: NDList): NDList {
             val anchors = predictions[1][layerIndex.toLong()].reshape(3, 2)
             val output = predictions[layerIndex + 2]
-            val target = labels.singletonOrThrow().reshape(1, 5)
+            var target = labels.singletonOrThrow()
+            target = target.reshape(target.shape[0], 5)
 
             val nB = output.shape[0]
             val nA = output.shape[1]
