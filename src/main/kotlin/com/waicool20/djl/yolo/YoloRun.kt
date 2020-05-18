@@ -13,6 +13,8 @@ import ai.djl.training.dataset.RandomAccessDataset
 import ai.djl.training.listener.TrainingListener
 import ai.djl.training.util.ProgressBar
 import ai.djl.translate.Pipeline
+import com.waicool20.djl.util.TopLeftXYToCenterXY
+import com.waicool20.djl.util.XYMinMaxToXYWH
 import java.nio.file.Paths
 
 private val BATCH_SIZE = 1
@@ -58,6 +60,7 @@ private fun getDataset(usage: Dataset.Usage): RandomAccessDataset {
     val pikachuDetection: PikachuDetection = PikachuDetection.builder()
         .optUsage(usage)
         .optPipeline(pipeline)
+        .optTargetPipeline(Pipeline(XYMinMaxToXYWH(), TopLeftXYToCenterXY()))
         .setSampling(BATCH_SIZE, true)
         .build()
     pikachuDetection.prepare(ProgressBar())
