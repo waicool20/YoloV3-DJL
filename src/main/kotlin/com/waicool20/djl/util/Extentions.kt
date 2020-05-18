@@ -1,5 +1,6 @@
 package com.waicool20.djl.util
 
+import ai.djl.ndarray.NDArray
 import ai.djl.ndarray.NDList
 import ai.djl.ndarray.types.Shape
 import ai.djl.nn.*
@@ -78,3 +79,6 @@ fun SequentialBlock.ShortcutBlock(
     add(block)
     return block
 }
+
+fun NDArray.fEllipsis() = ":,".repeat(shape.shape.size - 1)
+fun NDArray.bEllipsis() = ",:".repeat(shape.shape.size - 1)

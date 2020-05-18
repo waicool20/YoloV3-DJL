@@ -8,15 +8,15 @@ import ai.djl.translate.Transform
  * Transforms top left xy coordinates to center xy coordinates
  * Input data array must be <category> <x> <y> <w> <h>
  */
-class TopLeftXYToCenterXY: Transform {
+class TopLeftXYToCenterXY : Transform {
     override fun transform(array: NDArray): NDArray {
-        val x = array.getFloat(1)
-        val y = array.getFloat(2)
-        val w = array.getFloat(3)
-        val h = array.getFloat(4)
+        val x = array.get(NDIndex(array.fEllipsis() + 1)).getFloat()
+        val y = array.get(NDIndex(array.fEllipsis() + 2)).getFloat()
+        val w = array.get(NDIndex(array.fEllipsis() + 3)).getFloat()
+        val h = array.get(NDIndex(array.fEllipsis() + 4)).getFloat()
         return array.apply {
-            set(NDIndex(1), x + w / 2)
-            set(NDIndex(2), y + h / 2)
+            set(NDIndex(array.fEllipsis() + 1), x + w / 2)
+            set(NDIndex(array.fEllipsis() + 2), y + h / 2)
         }
     }
 }
