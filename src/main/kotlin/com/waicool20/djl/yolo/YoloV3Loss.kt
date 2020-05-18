@@ -10,6 +10,9 @@ import ai.djl.ndarray.types.Shape
 import ai.djl.training.loss.AbstractCompositeLoss
 import ai.djl.training.loss.Loss
 import ai.djl.util.Pair
+import com.waicool20.djl.util.minus
+import com.waicool20.djl.util.plus
+import com.waicool20.djl.util.times
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToLong
@@ -37,14 +40,14 @@ class YoloV3Loss(
             return when (componentIndex) {
                 0 -> {
                     val mask = targets[2]
-                    val tx = targets[4].muli(mask)
-                    val x = output.get(NDIndex(":, :, :, :, 0")).reshape(mask.shape).mul(mask)
+                    val tx = targets[4] * mask
+                    val x = output.get(NDIndex(":, :, :, :, 0")).reshape(mask.shape) * mask
                     Pair(NDList(tx), NDList(x))
                 }
                 1 -> {
                     val mask = targets[2]
-                    val ty = targets[5].muli(mask)
-                    val y = output.get(NDIndex(":, :, :, :, 1")).reshape(mask.shape).mul(mask)
+                    val ty = targets[5] * mask
+                    val y = output.get(NDIndex(":, :, :, :, 1")).reshape(mask.shape) * mask
                     Pair(NDList(ty), NDList(y))
                 }
                 2 -> {
@@ -55,27 +58,27 @@ class YoloV3Loss(
                 }
                 3 -> {
                     val mask = targets[2]
-                    val th = targets[7].muli(mask)
-                    val h = output.get(NDIndex(":, :, :, :, 3")).reshape(mask.shape).mul(mask)
+                    val th = targets[7] * mask
+                    val h = output.get(NDIndex(":, :, :, :, 3")).reshape(mask.shape) * mask
                     Pair(NDList(th), NDList(h))
                 }
                 4 -> {
                     val mask = targets[2]
                     val tc = targets[9].muli(mask)
-                    val c = output.get(NDIndex(":, :, :, :, 4")).reshape(mask.shape).mul(mask)
+                    val c = output.get(NDIndex(":, :, :, :, 4")).reshape(mask.shape) * mask
                     Pair(NDList(tc), NDList(c))
                 }
                 5 -> {
                     val mask = targets[3]
-                    val tc = targets[9].muli(mask)
-                    val c = output.get(NDIndex(":, :, :, :, 4")).reshape(mask.shape).mul(mask)
+                    val tc = targets[9] * mask
+                    val c = output.get(NDIndex(":, :, :, :, 4")).reshape(mask.shape) * mask
                     Pair(NDList(tc), NDList(c))
                 }
                 6 -> {
                     val mask = targets[2].expandDims(0).repeat(0, targets[8].shape[4])
                         .transpose(1, 2, 3, 4, 0)
-                    val tcls = targets[8].muli(mask)
-                    val cls = output.get(NDIndex(":, :, :, :, 5:")).reshape(mask.shape).mul(mask)
+                    val tcls = targets[8] * mask
+                    val cls = output.get(NDIndex(":, :, :, :, 5:")).reshape(mask.shape) * mask
                     Pair(NDList(tcls), NDList(cls))
                 }
                 else -> error("Invalid component index: $componentIndex")
@@ -157,15 +160,15 @@ class YoloV3Loss(
         }
 
         private fun whIOU(wh1: NDArray, wh2: NDArray): NDArray {
-            val wh2 = wh2.transpose()
+            val wh2t = wh2.transpose()
             val w1 = wh1[0]
             val h1 = wh1[1]
-            val w2 = wh2[0]
-            val h2 = wh2[1]
+            val w2 = wh2t[0]
+            val h2 = wh2t[1]
 
-            val inter = NDArrays.minimum(w1, w2).mul(NDArrays.minimum(h1, h2))
-            val union = w1.mul(h1).add(1e-16).add(w2.mul(h2)).sub(inter)
-            return inter.div(union)
+            val inter = NDArrays.minimum(w1, w2) * NDArrays.minimum(h1, h2)
+            val union = (w1 * h1 + w2 * h2 + 1e-16) - inter
+            return inter / union
         }
 
         private fun bboxIOU(box1: NDArray, box2: NDArray): Float {
