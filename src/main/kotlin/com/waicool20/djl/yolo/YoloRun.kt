@@ -3,8 +3,10 @@ package com.waicool20.djl.yolo
 import ai.djl.Device
 import ai.djl.Model
 import ai.djl.basicdataset.PikachuDetection
+import ai.djl.modality.cv.ImageVisualization
 import ai.djl.modality.cv.transform.Resize
 import ai.djl.modality.cv.transform.ToTensor
+import ai.djl.modality.cv.util.BufferedImageUtils
 import ai.djl.ndarray.types.Shape
 import ai.djl.training.DefaultTrainingConfig
 import ai.djl.training.TrainingConfig
@@ -16,6 +18,7 @@ import ai.djl.translate.Pipeline
 import com.waicool20.djl.util.TopLeftXYToCenterXY
 import com.waicool20.djl.util.XYMinMaxToXYWH
 import java.nio.file.Paths
+import javax.imageio.ImageIO
 
 private val BATCH_SIZE = 1
 private val WIDTH = 416
@@ -25,10 +28,34 @@ private val EPOCH = 1
 private val pipeline = Pipeline(Resize(WIDTH, HEIGHT), ToTensor())
 
 fun main() {
+    //predictYolo()
+    trainYolo()
+}
+
+private fun predictYolo() {
+    val yolov3 = YoloV3(numClasses = 1)
+    val model = Model.newInstance()
+    model.block = yolov3
+    model.load(Paths.get(""), "yolov3")
+
+    val translator = YoloTranslator(
+        pipeline = pipeline,
+        classes = listOf("Pikachu")
+    )
+
+    val predictor = model.newPredictor(translator)
+    val image = BufferedImageUtils.fromFile(Paths.get("test.jpg"))
+    val objects = predictor.predict(image)
+    ImageVisualization.drawBoundingBoxes(image, objects)
+    val out = Paths.get("").resolve("output.png")
+    ImageIO.write(image, "png", out.toFile())
+}
+
+private fun trainYolo() {
     val trainDataset = getDataset(Dataset.Usage.TRAIN)
     val testDataset = getDataset(Dataset.Usage.TEST)
 
-    val yolov3 = YoloV3()
+    val yolov3 = YoloV3(numClasses = 1)
     val model = Model.newInstance()
     model.block = yolov3
 
