@@ -1,6 +1,5 @@
 package com.waicool20.djl.yolo
 
-import ai.djl.ndarray.NDArray
 import ai.djl.ndarray.NDArrays
 import ai.djl.ndarray.NDList
 import ai.djl.ndarray.NDManager
@@ -10,11 +9,10 @@ import ai.djl.ndarray.types.Shape
 import ai.djl.training.loss.AbstractCompositeLoss
 import ai.djl.training.loss.Loss
 import ai.djl.util.Pair
-import com.waicool20.djl.util.minus
-import com.waicool20.djl.util.plus
+import com.waicool20.djl.util.YoloUtils.bboxIOU
+import com.waicool20.djl.util.YoloUtils.whIOU
 import com.waicool20.djl.util.times
 import kotlin.math.floor
-import kotlin.math.max
 import kotlin.math.roundToLong
 
 class YoloV3Loss(
@@ -94,9 +92,13 @@ class YoloV3Loss(
             var target = labels.singletonOrThrow()
             target = target.reshape(target.shape[0], 5)
 
+            // Batch size
             val nB = output.shape[0]
+            // Anchors
             val nA = output.shape[1]
+            // Classes
             val nC = output.shape[4] - 5
+            // Stride
             val nG = output.shape[3]
 
             val maskShape = Shape(nB, nA, nG, nG)
@@ -117,7 +119,7 @@ class YoloV3Loss(
 
             val ious = NDArrays.concat(NDList(whIOU(anchors[0], gwh), whIOU(anchors[1], gwh), whIOU(anchors[2], gwh)))
                 .reshape(nA, nB)
-            val bestIOU = ious.max(intArrayOf(0))
+            //val bestIOU = ious.max(intArrayOf(0))
             val bestIOUn = ious.argMax(0)
 
             for (b in 0 until nB) {
@@ -158,41 +160,6 @@ class YoloV3Loss(
                 tw, th, tcls, objMask.toType(DataType.FLOAT32, true)
             )
         }
-
-        private fun whIOU(wh1: NDArray, wh2: NDArray): NDArray {
-            val wh2t = wh2.transpose()
-            val w1 = wh1[0]
-            val h1 = wh1[1]
-            val w2 = wh2t[0]
-            val h2 = wh2t[1]
-
-            val inter = NDArrays.minimum(w1, w2) * NDArrays.minimum(h1, h2)
-            val union = (w1 * h1 + w2 * h2 + 1e-16) - inter
-            return inter / union
-        }
-
-        private fun bboxIOU(box1: NDArray, box2: NDArray): Float {
-            val b1x1 = box1.getFloat(0) - box1.getFloat(2) / 2
-            val b1x2 = box1.getFloat(0) + box1.getFloat(2) / 2
-            val b1y1 = box1.getFloat(1) - box1.getFloat(3) / 2
-            val b1y2 = box1.getFloat(1) + box1.getFloat(3) / 2
-
-            val b2x1 = box2.getFloat(0) - box2.getFloat(2) / 2
-            val b2x2 = box2.getFloat(0) + box2.getFloat(2) / 2
-            val b2y1 = box2.getFloat(1) - box2.getFloat(3) / 2
-            val b2y2 = box2.getFloat(1) + box2.getFloat(3) / 2
-
-            val rx1 = max(b1x1, b2x1)
-            val ry1 = max(b1y1, b2y1)
-            val rx2 = max(b1x2, b2x2)
-            val ry2 = max(b1y2, b2y2)
-
-            val interArea = (rx1 - rx2) * (ry1 - ry2)
-
-            val b1a = (b1x2 - b1x1) * (b1y2 - b1y1)
-            val b2a = (b2x2 - b2x1) * (b2y2 - b2y1)
-            return interArea / (b1a + b2a - interArea + 1e-16f)
-        }
     }
 
     private lateinit var manager: NDManager
@@ -202,7 +169,7 @@ class YoloV3Loss(
     }
 
     override fun inputForComponent(componentIndex: Int, labels: NDList, predictions: NDList): Pair<NDList, NDList> {
-        manager = predictions[0].manager
+        manager = predictions[0].manager.newSubManager()
 
         return when (componentIndex) {
             0 -> Pair(labels, predictions)
