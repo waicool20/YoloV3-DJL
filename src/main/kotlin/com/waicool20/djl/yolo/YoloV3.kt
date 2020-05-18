@@ -152,23 +152,23 @@ class YoloV3(
     ): NDList {
         var x = inputs
         x = skip36Block.forward(parameterStore, x, training, params)
-        val skip36 = NDList(x)
+        val skip36 = x
 
         x = skip61Block.forward(parameterStore, x, training, params)
-        val skip61 = NDList(x)
+        val skip61 = x
 
         x = yolo82Block.forward(parameterStore, x, training, params)
-        val yolo82 = NDList(x)
+        val yolo82 = x
 
         x = yolo82PreConcatBlock.forward(parameterStore, x, training, params)
         x = NDList(x.singletonOrThrow().concat(skip61.singletonOrThrow(), 1))
         x = yolo94Block.forward(parameterStore, x, training, params)
-        val yolo94 = NDList(x)
+        val yolo94 = x
 
         x = yolo94PreConcatBlock.forward(parameterStore, x, training, params)
         x = NDList(x.singletonOrThrow().concat(skip36.singletonOrThrow(), 1))
         x = yolo106Block.forward(parameterStore, x, training, params)
-        val yolo106 = NDList(x)
+        val yolo106 = x
 
         manager = manager.newSubManager(inputs[0].device)
         val inputShapesArray = manager.create(inputShapes[0])
