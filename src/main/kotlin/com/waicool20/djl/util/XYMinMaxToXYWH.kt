@@ -10,10 +10,10 @@ import ai.djl.translate.Transform
  */
 class XYMinMaxToXYWH : Transform {
     override fun transform(array: NDArray): NDArray {
-        val xMin = array.get(NDIndex(array.fEllipsis() + 1)).getFloat()
-        val yMin = array.get(NDIndex(array.fEllipsis() + 2)).getFloat()
-        val xMax = array.get(NDIndex(array.fEllipsis() + 3)).getFloat()
-        val yMax = array.get(NDIndex(array.fEllipsis() + 4)).getFloat()
+        val xMin = array.get(NDIndex(array.fEllipsis() + 1))
+        val yMin = array.get(NDIndex(array.fEllipsis() + 2))
+        val xMax = array.get(NDIndex(array.fEllipsis() + 3))
+        val yMax = array.get(NDIndex(array.fEllipsis() + 4))
         return array.apply {
             set(NDIndex(array.fEllipsis() + 3), xMax - xMin)
             set(NDIndex(array.fEllipsis() + 4), yMax - yMin)
