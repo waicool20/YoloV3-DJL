@@ -170,8 +170,8 @@ class YoloV3(
         x = yolo106Block.forward(parameterStore, x, training, params)
         val yolo106 = x
 
-        manager = manager.newSubManager(inputs[0].device)
-        val inputShapesArray = manager.create(inputShapes[0])
+        manager = inputs[0].manager.newSubManager(inputs[0].device)
+        val inputShapesArray = manager.create(inputShapes[0].shape)
         val anchorsArray = manager.create(anchors)
 
         return NDList(
