@@ -7,6 +7,7 @@ import ai.djl.modality.cv.ImageVisualization
 import ai.djl.modality.cv.transform.Resize
 import ai.djl.modality.cv.transform.ToTensor
 import ai.djl.modality.cv.util.BufferedImageUtils
+import ai.djl.ndarray.NDList
 import ai.djl.ndarray.types.Shape
 import ai.djl.training.DefaultTrainingConfig
 import ai.djl.training.TrainingConfig
@@ -15,6 +16,7 @@ import ai.djl.training.dataset.RandomAccessDataset
 import ai.djl.training.listener.TrainingListener
 import ai.djl.training.util.ProgressBar
 import ai.djl.translate.Pipeline
+import com.waicool20.djl.util.SequentialBlock
 import com.waicool20.djl.util.TopLeftXYToCenterXY
 import com.waicool20.djl.util.XYMinMaxToXYWH
 import java.nio.file.Paths
@@ -37,6 +39,12 @@ private fun predictYolo() {
     val model = Model.newInstance()
     model.block = yolov3
     model.load(Paths.get(""), "yolov3")
+
+    val predictBlock = SequentialBlock {
+        add(model.block)
+        add { NDList(it[2], it[3], it[4]) }
+    }
+    model.block = predictBlock
 
     val translator = YoloTranslator(
         pipeline = pipeline,
