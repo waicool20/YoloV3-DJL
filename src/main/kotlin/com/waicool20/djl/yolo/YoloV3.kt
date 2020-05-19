@@ -234,6 +234,7 @@ class YoloV3(
     }
 
     override fun loadParameters(manager: NDManager, inputStream: DataInputStream) {
+        readInputShapes(inputStream)
         skip36Block.loadParameters(manager, inputStream)
         skip61Block.loadParameters(manager, inputStream)
         yolo82Block.loadParameters(manager, inputStream)
@@ -244,6 +245,7 @@ class YoloV3(
     }
 
     override fun saveParameters(outputStream: DataOutputStream) {
+        saveInputShapes(outputStream)
         skip36Block.saveParameters(outputStream)
         skip61Block.saveParameters(outputStream)
         yolo82Block.saveParameters(outputStream)
@@ -263,7 +265,6 @@ class YoloV3(
     }
 
     override fun initialize(manager: NDManager, dataType: DataType, vararg inputShapes: Shape): Array<Shape> {
-        this.manager = manager
         this.inputShapes = inputShapes
         var shape = inputShapes
         val skip36Shape = skip36Block.initialize(manager, dataType, *shape)
