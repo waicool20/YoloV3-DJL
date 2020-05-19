@@ -76,10 +76,12 @@ private fun trainYolo() {
             trainer.trainBatch(batch)
             trainer.step()
             batch.close()
+            System.gc()
         }
         for (batch in trainer.iterateDataset(testDataset)) {
             trainer.validateBatch(batch)
             batch.close()
+            System.gc()
         }
 
         trainer.endEpoch()
@@ -104,6 +106,6 @@ private fun getDataset(usage: Dataset.Usage): RandomAccessDataset {
 
 private fun getTrainingConfig(): TrainingConfig {
     return DefaultTrainingConfig(YoloV3Loss())
-        .optDevices(arrayOf(Device.cpu()))
+        .optDevices(arrayOf(Device.gpu()))
         .addTrainingListeners(*TrainingListener.Defaults.logging())
 }
