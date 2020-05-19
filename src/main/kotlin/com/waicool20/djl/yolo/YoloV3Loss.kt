@@ -34,48 +34,46 @@ class YoloV3Loss(
 
         override fun inputForComponent(componentIndex: Int, labels: NDList, predictions: NDList): Pair<NDList, NDList> {
             val targets = buildTargets(labels, predictions)
+            val iouScores = targets[0]
+            val classMask = targets[1]
+            val objMask = targets[2]
+            val noObjMask = targets[3]
+            val tx = targets[4]
+            val ty = targets[5]
+            val tw = targets[6]
+            val th = targets[7]
+            val tcls = targets[8]
+            val tconf = targets[9]
             val output = predictions[layerIndex + 2]
             return when (componentIndex) {
                 0 -> {
-                    val mask = targets[2]
-                    val tx = targets[4] * mask
-                    val x = output.get(NDIndex(":, :, :, :, 0")).reshape(mask.shape) * mask
+                    val x = output.get(NDIndex(":, :, :, :, 0")).reshape(objMask.shape) * objMask
                     Pair(NDList(tx), NDList(x))
                 }
                 1 -> {
-                    val mask = targets[2]
-                    val ty = targets[5] * mask
-                    val y = output.get(NDIndex(":, :, :, :, 1")).reshape(mask.shape) * mask
+                    val y = output.get(NDIndex(":, :, :, :, 1")).reshape(objMask.shape) * objMask
                     Pair(NDList(ty), NDList(y))
                 }
                 2 -> {
-                    val mask = targets[2]
-                    val tw = targets[6].muli(mask)
-                    val w = output.get(NDIndex(":, :, :, :, 2")).reshape(mask.shape).mul(mask)
+                    val w = output.get(NDIndex(":, :, :, :, 2")).reshape(objMask.shape) * objMask
                     Pair(NDList(tw), NDList(w))
                 }
                 3 -> {
-                    val mask = targets[2]
-                    val th = targets[7] * mask
-                    val h = output.get(NDIndex(":, :, :, :, 3")).reshape(mask.shape) * mask
+                    val h = output.get(NDIndex(":, :, :, :, 3")).reshape(objMask.shape) * objMask
                     Pair(NDList(th), NDList(h))
                 }
                 4 -> {
-                    val mask = targets[2]
-                    val tc = targets[9].muli(mask)
-                    val c = output.get(NDIndex(":, :, :, :, 4")).reshape(mask.shape) * mask
-                    Pair(NDList(tc), NDList(c))
+                    val tObjConf = tconf * objMask
+                    val conf = output.get(NDIndex(":, :, :, :, 4")).reshape(objMask.shape) * objMask
+                    Pair(NDList(tObjConf), NDList(conf))
                 }
                 5 -> {
-                    val mask = targets[3]
-                    val tc = targets[9] * mask
-                    val c = output.get(NDIndex(":, :, :, :, 4")).reshape(mask.shape) * mask
-                    Pair(NDList(tc), NDList(c))
+                    val tNoObjConf = tconf * noObjMask
+                    val conf = output.get(NDIndex(":, :, :, :, 4")).reshape(noObjMask.shape) * noObjMask
+                    Pair(NDList(tNoObjConf), NDList(conf))
                 }
                 6 -> {
-                    val mask = targets[2].expandDims(0).repeat(0, targets[8].shape[4])
-                        .transpose(1, 2, 3, 4, 0)
-                    val tcls = targets[8] * mask
+                    val mask = objMask.expandDims(0).repeat(0, tcls.shape[4]).transpose(1, 2, 3, 4, 0)
                     val cls = output.get(NDIndex(":, :, :, :, 5:")).reshape(mask.shape) * mask
                     Pair(NDList(tcls), NDList(cls))
                 }
@@ -128,10 +126,12 @@ class YoloV3Loss(
                 val gi = gx.roundToLong()
                 val gj = gy.roundToLong()
 
-                objMask.set(NDIndex(b, bestIOUn.getLong(b), gj, gi), 1)
-                noObjMask.set(NDIndex(b, bestIOUn.getLong(b), gj, gi), 0)
-                tx.set(NDIndex(b, bestIOUn.getLong(b), gj, gi), gx - floor(gx))
-                ty.set(NDIndex(b, bestIOUn.getLong(b), gj, gi), gy - floor(gy))
+                val index = NDIndex(b, bestIOUn.getLong(b), gj, gi)
+
+                objMask.set(index, 1)
+                noObjMask.set(index, 0)
+                tx.set(index, gx - floor(gx))
+                ty.set(index, gy - floor(gy))
 
                 tcls.set(NDIndex(b, bestIOUn.getLong(b), gj, gi, target.getFloat(b, 0).roundToLong()), 1)
 
@@ -140,16 +140,11 @@ class YoloV3Loss(
                         noObjMask.set(NDIndex(b, a, gj, gi), 0)
                     }
                 }
-                if (output.get(NDIndex(b, bestIOUn.getLong(b), gj, gi)).argMax().getLong() == target.getFloat(b, 0)
-                        .roundToLong()
-                ) {
-                    classMask.set(NDIndex(b, bestIOUn.getLong(b), gj, gi), 1f)
+                if (output.get(index).argMax().getLong() == target.getFloat(b, 0).roundToLong()) {
+                    classMask.set(index, 1f)
                 }
-                val bboxIOU = bboxIOU(
-                    output[NDIndex(b, bestIOUn.getLong(b), gj, gi)],
-                    target[NDIndex("$b, 1:5")]
-                )
-                iouScores.set(NDIndex(b, bestIOUn.getLong(b), gj, gi), bboxIOU)
+                val bboxIOU = bboxIOU(output[index], target[NDIndex("$b, 1:5")])
+                iouScores.set(index, bboxIOU)
             }
             return NDList(
                 iouScores,
