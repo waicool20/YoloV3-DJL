@@ -198,17 +198,15 @@ class YoloV3(
 
         val gridSize = array.shape[2]
         val stride = inputShapes[0][2] / gridSize
-        val gridY = manager.arange(gridSize.toFloat())
-            .repeat(gridSize)
-            .reshape(1, 1, gridSize, gridSize)
+        val gridY = manager.arange(gridSize.toFloat()).repeat(gridSize).reshape(1, 1, gridSize, gridSize)
         val gridX = gridY.duplicate().transpose(0, 1, 3, 2)
 
         val scaledAnchors = anchors.div(stride).expandDims(0).reshape(3, 2)
         val anchorW = scaledAnchors.get(NDIndex(":, 0:1")).reshape(1, 3, 1, 1)
         val anchorH = scaledAnchors.get(NDIndex(":, 1:2")).reshape(1, 3, 1, 1)
 
-        val x = array.get(NDIndex(":, :, :, :, 0")).ndArrayInternal.sigmoid().add(gridX).expandDims(4)
-        val y = array.get(NDIndex(":, :, :, :, 1")).ndArrayInternal.sigmoid().add(gridY).expandDims(4)
+        val x = array.get(NDIndex(":, :, :, :, 0")).ndArrayInternal.sigmoid().add(gridX).div(gridSize).expandDims(4)
+        val y = array.get(NDIndex(":, :, :, :, 1")).ndArrayInternal.sigmoid().add(gridY).div(gridSize).expandDims(4)
         val w = array.get(NDIndex(":, :, :, :, 2")).exp().mul(anchorW).expandDims(4)
         val h = array.get(NDIndex(":, :, :, :, 3")).exp().mul(anchorH).expandDims(4)
         val p = array.get(NDIndex(":, :, :, :, 4")).ndArrayInternal.sigmoid().expandDims(4)
