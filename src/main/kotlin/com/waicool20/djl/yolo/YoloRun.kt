@@ -94,7 +94,7 @@ private fun trainYolo() {
 
         trainer.endEpoch()
         trainer.model.apply {
-            setProperty("Epoch", java.lang.String.valueOf(epoch))
+            setProperty("Epoch", epoch.toString())
             save(Paths.get(""), "yolov3")
         }
     }

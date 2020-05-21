@@ -8,17 +8,19 @@ import ai.djl.ndarray.NDList
 import ai.djl.ndarray.index.NDIndex
 import ai.djl.translate.Pipeline
 import ai.djl.translate.TranslatorContext
+import com.waicool20.djl.util.YoloUtils
 import com.waicool20.djl.util.minus
 
 class YoloTranslator(
     pipeline: Pipeline,
-    val threshold: Float = 0.2f,
+    val iouThreshold: Double = 0.5,
+    val threshold: Double = 0.2,
     val classes: List<String> = emptyList(),
     val rescaleSize: Pair<Double, Double> = 0.0 to 0.0
 ) : ObjectDetectionTranslator(
     Builder()
         .setPipeline(pipeline)
-        .optThreshold(threshold)
+        .optThreshold(threshold.toFloat())
         .setClasses(classes)
         .optRescaleSize(rescaleSize.first, rescaleSize.second)
 ) {
@@ -27,9 +29,7 @@ class YoloTranslator(
     }
 
     override fun processOutput(ctx: TranslatorContext, list: NDList): DetectedObjects {
-        val names = mutableListOf<String>()
-        val rects = mutableListOf<BoundingBox>()
-        val probabilities = mutableListOf<Double>()
+        val objects = mutableListOf<DetectedObjects.DetectedObject>()
         for (i in 0 until 3) {
             var output = list[i]
             val shape = output.shape
@@ -46,21 +46,27 @@ class YoloTranslator(
 
             for (j in 0 until output.shape[0]) {
                 val probability = p.getFloat(j).toDouble()
-                if (probability > threshold) {
-                    probabilities.add(probability)
-                    names.add(classes[c.getLong(j).toInt()])
-                    rects.add(
-                        Rectangle(
-                            x.getFloat(j).toDouble(),
-                            y.getFloat(j).toDouble(),
-                            w.getFloat(j).toDouble(),
-                            h.getFloat(j).toDouble()
+                if (probability >= threshold) {
+                    objects.add(
+                        DetectedObjects.DetectedObject(
+                            classes[c.getLong(j).toInt()],
+                            probability,
+                            Rectangle(
+                                x.getFloat(j).toDouble(),
+                                y.getFloat(j).toDouble(),
+                                w.getFloat(j).toDouble(),
+                                h.getFloat(j).toDouble()
+                            )
                         )
                     )
                 }
             }
         }
-        // TODO NMS
-        return DetectedObjects(names, probabilities, rects)
+        val keep = YoloUtils.nms(iouThreshold, objects)
+        return DetectedObjects(
+            keep.map { it.className },
+            keep.map { it.probability },
+            keep.map { it.boundingBox }
+        )
     }
 }
