@@ -18,7 +18,7 @@ import ai.djl.training.util.ProgressBar
 import ai.djl.translate.Pipeline
 import com.waicool20.djl.util.SequentialBlock
 import com.waicool20.djl.util.TopLeftXYToCenterXY
-import com.waicool20.djl.util.XYMinMaxToXYWH
+import com.waicool20.djl.util.XYXYToXYWH
 import java.nio.file.Paths
 import javax.imageio.ImageIO
 
@@ -97,7 +97,7 @@ private fun getDataset(usage: Dataset.Usage): RandomAccessDataset {
     val pikachuDetection: PikachuDetection = PikachuDetection.builder()
         .optUsage(usage)
         .optPipeline(pipeline)
-        .optTargetPipeline(Pipeline(XYMinMaxToXYWH(), TopLeftXYToCenterXY()))
+        .optTargetPipeline(Pipeline(XYXYToXYWH(), TopLeftXYToCenterXY()))
         .setSampling(BATCH_SIZE, true)
         .build()
     pikachuDetection.prepare(ProgressBar())
