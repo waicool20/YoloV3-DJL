@@ -3,6 +3,7 @@ package com.waicool20.djl.yolo
 import ai.djl.Device
 import ai.djl.Model
 import ai.djl.basicdataset.PikachuDetection
+import ai.djl.metric.Metrics
 import ai.djl.modality.cv.ImageVisualization
 import ai.djl.modality.cv.transform.Resize
 import ai.djl.modality.cv.transform.ToTensor
@@ -25,7 +26,7 @@ import javax.imageio.ImageIO
 private val BATCH_SIZE = 1
 private val WIDTH = 416
 private val HEIGHT = 416
-private val EPOCH = 1
+private val EPOCH = 32
 
 private val pipeline = Pipeline(Resize(WIDTH, HEIGHT), ToTensor())
 
@@ -47,6 +48,7 @@ private fun predictYolo() {
     model.block = predictBlock
 
     val translator = YoloTranslator(
+        threshold = 1.0,
         pipeline = pipeline,
         classes = listOf("Pikachu")
     )
@@ -66,8 +68,14 @@ private fun trainYolo() {
     val yolov3 = YoloV3(numClasses = 1)
     val model = Model.newInstance()
     model.block = yolov3
+    try {
+        model.load(Paths.get(""), "yolov3")
+    } catch (e: Exception) {
+        println("No weights found, training new weights")
+    }
 
     val trainer = model.newTrainer(getTrainingConfig())
+    trainer.metrics = Metrics()
     val inputShape = Shape(BATCH_SIZE.toLong(), 3, WIDTH.toLong(), HEIGHT.toLong())
     trainer.initialize(inputShape)
 
