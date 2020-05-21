@@ -172,7 +172,7 @@ class YoloV3(
 
         manager = inputs[0].manager.newSubManager(inputs[0].device)
         val inputShapesArray = manager.create(inputShapes[0].shape)
-        val anchorsArray = manager.create(anchors)
+        val anchorsArray = manager.create(anchors).div(inputShapes[0].shape[2])
 
         return NDList(
             inputShapesArray,
@@ -201,9 +201,9 @@ class YoloV3(
         val gridY = manager.arange(gridSize.toFloat()).repeat(gridSize).reshape(1, 1, gridSize, gridSize)
         val gridX = gridY.duplicate().transpose(0, 1, 3, 2)
 
-        val scaledAnchors = anchors.div(stride).expandDims(0).reshape(3, 2)
-        val anchorW = scaledAnchors.get(NDIndex(":, 0:1")).reshape(1, 3, 1, 1)
-        val anchorH = scaledAnchors.get(NDIndex(":, 1:2")).reshape(1, 3, 1, 1)
+        val anchorsArray = anchors.expandDims(0).reshape(3, 2)
+        val anchorW = anchorsArray.get(NDIndex(":, 0:1")).reshape(1, 3, 1, 1)
+        val anchorH = anchorsArray.get(NDIndex(":, 1:2")).reshape(1, 3, 1, 1)
 
         val x = array.get(NDIndex(":, :, :, :, 0")).ndArrayInternal.sigmoid().add(gridX).div(gridSize).expandDims(4)
         val y = array.get(NDIndex(":, :, :, :, 1")).ndArrayInternal.sigmoid().add(gridY).div(gridSize).expandDims(4)

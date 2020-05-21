@@ -1,6 +1,6 @@
 package com.waicool20.djl.yolo
 
-import ai.djl.ndarray.NDArrays
+import ai.djl.ndarray.NDArray
 import ai.djl.ndarray.NDList
 import ai.djl.ndarray.NDManager
 import ai.djl.ndarray.index.NDIndex
@@ -9,151 +9,94 @@ import ai.djl.ndarray.types.Shape
 import ai.djl.training.loss.AbstractCompositeLoss
 import ai.djl.training.loss.Loss
 import ai.djl.util.Pair
-import com.waicool20.djl.util.YoloUtils.bboxIOU
+import com.waicool20.djl.util.YoloUtils.bboxIOUs
 import com.waicool20.djl.util.YoloUtils.whIOU
+import com.waicool20.djl.util.fEllipsis
+import com.waicool20.djl.util.minus
+import com.waicool20.djl.util.plus
 import com.waicool20.djl.util.times
-import kotlin.math.floor
-import kotlin.math.roundToLong
 
 class YoloV3Loss(
-    val ignoreThreshold: Double = 0.5
+    val ignoreThreshold: Double = 0.5,
+    val lambdaCoord: Double = 5.0,
+    val lambdaNoObj: Double = 0.5
 ) : AbstractCompositeLoss("YoloV3Loss") {
 
-    private inner class YoloV3LayerLoss(private val layerIndex: Int) : AbstractCompositeLoss("YoloV3LayerLoss") {
-        init {
-            components = listOf(
-                Loss.l2Loss("BoundingBoxXLoss"),
-                Loss.l2Loss("BoundingBoxYLoss"),
-                Loss.l2Loss("BoundingBoxWLoss"),
-                Loss.l2Loss("BoundingBoxHLoss"),
-                Loss.sigmoidBinaryCrossEntropyLoss("ConfObjLoss"),
-                Loss.sigmoidBinaryCrossEntropyLoss("ConfNoObjLoss", 100f, false),
-                Loss.sigmoidBinaryCrossEntropyLoss("ClassLoss")
-            )
-        }
+    private inner class YoloV3LayerLoss(private val layerIndex: Int) : Loss("YoloV3LayerLoss") {
+        override fun evaluate(labels: NDList, predictions: NDList): NDArray {
+            val label = labels.singletonOrThrow().reshape(labels[0].shape[0], 5)
+            val prediction = predictions[layerIndex + 2]
 
-        override fun inputForComponent(componentIndex: Int, labels: NDList, predictions: NDList): Pair<NDList, NDList> {
-            val targets = buildTargets(labels, predictions)
-            val iouScores = targets[0]
-            val classMask = targets[1]
-            val objMask = targets[2]
-            val noObjMask = targets[3]
-            val tx = targets[4]
-            val ty = targets[5]
-            val tw = targets[6]
-            val th = targets[7]
-            val tcls = targets[8]
-            val tconf = targets[9]
-            val output = predictions[layerIndex + 2]
-            return when (componentIndex) {
-                0 -> {
-                    val x = output.get(NDIndex(":, :, :, :, 0")).reshape(objMask.shape) * objMask
-                    Pair(NDList(tx), NDList(x))
-                }
-                1 -> {
-                    val y = output.get(NDIndex(":, :, :, :, 1")).reshape(objMask.shape) * objMask
-                    Pair(NDList(ty), NDList(y))
-                }
-                2 -> {
-                    val w = output.get(NDIndex(":, :, :, :, 2")).reshape(objMask.shape) * objMask
-                    Pair(NDList(tw), NDList(w))
-                }
-                3 -> {
-                    val h = output.get(NDIndex(":, :, :, :, 3")).reshape(objMask.shape) * objMask
-                    Pair(NDList(th), NDList(h))
-                }
-                4 -> {
-                    val tObjConf = tconf * objMask
-                    val conf = output.get(NDIndex(":, :, :, :, 4")).reshape(objMask.shape) * objMask
-                    Pair(NDList(tObjConf), NDList(conf))
-                }
-                5 -> {
-                    val tNoObjConf = tconf * noObjMask
-                    val conf = output.get(NDIndex(":, :, :, :, 4")).reshape(noObjMask.shape) * noObjMask
-                    Pair(NDList(tNoObjConf), NDList(conf))
-                }
-                6 -> {
-                    val mask = objMask.expandDims(0).repeat(0, tcls.shape[4]).transpose(1, 2, 3, 4, 0)
-                    val cls = output.get(NDIndex(":, :, :, :, 5:")).reshape(mask.shape) * mask
-                    Pair(NDList(tcls), NDList(cls))
-                }
-                else -> error("Invalid component index: $componentIndex")
-            }
-        }
-
-        /**
-         * @see <a href="https://towardsdatascience.com/calculating-loss-of-yolo-v3-layer-8878bfaaf1ff">Calculating Loss</a>
-         */
-        private fun buildTargets(labels: NDList, predictions: NDList): NDList {
             val anchors = predictions[1][layerIndex.toLong()].reshape(3, 2)
-            val output = predictions[layerIndex + 2]
-            var target = labels.singletonOrThrow()
-            target = target.reshape(target.shape[0], 5)
+            val stride = prediction.shape[2]
 
-            // Batch size
-            val nB = output.shape[0]
-            // Anchors
-            val nA = output.shape[1]
-            // Classes
-            val nC = output.shape[4] - 5
-            // Stride
-            val nG = output.shape[3]
+            val predXY = prediction.get(NDIndex(prediction.fEllipsis() + "0:2"))
+            val predWH = prediction.get(NDIndex(prediction.fEllipsis() + "2:4"))
+            val predObj = prediction.get(NDIndex(prediction.fEllipsis() + "4"))
+            val predCls = prediction.get(NDIndex(prediction.fEllipsis() + "5:"))
 
-            val maskShape = Shape(nB, nA, nG, nG)
-
-            val objMask = manager.zeros(maskShape)
-            val noObjMask = manager.ones(maskShape)
-            val classMask = manager.zeros(maskShape)
-            val iouScores = manager.zeros(maskShape)
-            val tx = manager.zeros(maskShape)
-            val ty = manager.zeros(maskShape)
-            val tw = manager.zeros(maskShape)
-            val th = manager.zeros(maskShape)
-            val tcls = manager.zeros(maskShape.addAll(Shape(nC)))
-
-            val targetBoxes = target.get(NDIndex(":, 1:5")).mul(nG)
-            val gxy = targetBoxes.get(NDIndex(":, :2"))
-            val gwh = targetBoxes.get(NDIndex(":, 2:"))
-
-            val ious = NDArrays.concat(NDList(whIOU(anchors[0], gwh), whIOU(anchors[1], gwh), whIOU(anchors[2], gwh)))
-                .reshape(nA, nB)
-            //val bestIOU = ious.max(intArrayOf(0))
-            val bestIOUn = ious.argMax(0)
-
-            for (b in 0 until nB) {
-                val gx = gxy.getFloat(b, 0)
-                val gy = gxy.getFloat(b, 1)
-                val gi = gx.roundToLong()
-                val gj = gy.roundToLong()
-
-                val index = NDIndex(b, bestIOUn.getLong(b), gj, gi)
-
-                objMask.set(index, 1)
-                noObjMask.set(index, 0)
-                tx.set(index, gx - floor(gx))
-                ty.set(index, gy - floor(gy))
-
-                tcls.set(NDIndex(b, bestIOUn.getLong(b), gj, gi, target.getFloat(b, 0).roundToLong()), 1)
-
-                for (a in 0 until ious.shape[0]) {
-                    if (ious.getFloat(a, b) > ignoreThreshold) {
-                        noObjMask.set(NDIndex(b, a, gj, gi), 0)
+            val trueXY = label.get(NDIndex(label.fEllipsis() + "1:3"))
+            val trueWH = label.get(NDIndex(label.fEllipsis() + "3:5"))
+            val trueObj = run {
+                val x = (trueXY.get(trueXY.fEllipsis() + 0) * stride).floor()
+                val y = (trueXY.get(trueXY.fEllipsis() + 1) * stride).floor()
+                val ious = whIOU(trueWH, anchors)
+                val n = ious.argMax(1)
+                manager.zeros(predObj.shape).apply {
+                    for (b in 0 until ious.shape[0]) {
+                        set(NDIndex(b, n.getLong(b), x.getFloat(b).toLong(), y.getFloat(b).toLong()), 1)
                     }
-                }
-                if (output.get(index).argMax().getLong() == target.getFloat(b, 0).roundToLong()) {
-                    classMask.set(index, 1f)
-                }
-                val bboxIOU = bboxIOU(output[index], target[NDIndex("$b, 1:5")])
-                iouScores.set(index, bboxIOU)
+                }.toType(DataType.BOOLEAN, false)
             }
-            return NDList(
-                iouScores,
-                classMask,
-                objMask,
-                noObjMask,
-                tx, ty,
-                tw, th, tcls, objMask.toType(DataType.FLOAT32, true)
+            val trueCls = manager.zeros(Shape(predCls.shape[0], predCls.shape[4])).apply {
+                val trueClsIndex = label.get(NDIndex(label.fEllipsis() + "0"))
+                for (b in 0 until predCls.shape[0]) {
+                    val i = trueClsIndex.getFloat(b).toLong()
+                    set(NDIndex(b, i), 1)
+                }
+            }
+
+            val weight = trueWH.get(NDIndex(":, 0")) * trueWH.get(NDIndex(":, 1")) * -1 + 2
+
+            val xyLoss = run {
+                val xy = predXY.booleanMask(trueObj)
+                (xy - trueXY).square().mean() * lambdaCoord * weight
+            }
+            val whLoss = run {
+                val wh = predWH.booleanMask(trueObj).sqrt()
+                (wh - trueWH.sqrt()).square().mean() * lambdaCoord * weight
+            }
+            val objLoss = sigmoidBinaryCrossEntropyLoss().evaluate(
+                NDList(trueObj.toType(DataType.FLOAT32, true).booleanMask(trueObj)),
+                NDList(predObj.booleanMask(trueObj))
             )
+
+            val noObjLoss = run {
+                val boxes1 = predXY.concat(predWH, 4).booleanMask(trueObj)
+                val boxes2 = trueXY.concat(trueWH, 1)
+                val ious = bboxIOUs(boxes1, boxes2)
+                val ignoreMask = ious.lt(ignoreThreshold)
+                val trueNoObjMask = trueObj.logicalNot()
+
+                val trueNoObj = trueObj.toType(DataType.FLOAT32, true).booleanMask(trueNoObjMask)
+                val predNoObj = predObj.booleanMask(trueNoObjMask)
+
+                val trueExtraNoObj = trueObj.toType(DataType.FLOAT32, true).booleanMask(trueObj).booleanMask(ignoreMask)
+                val predExtraNoObj = predObj.booleanMask(trueObj).booleanMask(ignoreMask)
+
+                sigmoidBinaryCrossEntropyLoss().evaluate(
+                    NDList(trueNoObj.concat(trueExtraNoObj)),
+                    NDList(predNoObj.concat(predExtraNoObj))
+                ) * lambdaNoObj
+            }
+
+            val classLoss = sigmoidBinaryCrossEntropyLoss().evaluate(
+                NDList(predCls.booleanMask(trueObj)),
+                NDList(trueCls)
+            )
+
+            val totalLoss = xyLoss + whLoss + objLoss + noObjLoss + classLoss
+            return totalLoss
         }
     }
 
