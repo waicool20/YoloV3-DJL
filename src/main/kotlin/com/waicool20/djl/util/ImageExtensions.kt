@@ -4,6 +4,7 @@ import java.awt.Dimension
 import java.awt.Toolkit
 import java.awt.event.KeyEvent
 import java.awt.event.KeyListener
+import java.awt.event.WindowStateListener
 import java.awt.image.BufferedImage
 import javax.swing.ImageIcon
 import javax.swing.JFrame
@@ -24,4 +25,5 @@ fun BufferedImage.openWindowPreview() {
         override fun keyPressed(event: KeyEvent) = Unit
         override fun keyReleased(event: KeyEvent) = Unit
     })
+    frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
 }
