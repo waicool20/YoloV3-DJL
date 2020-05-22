@@ -15,6 +15,8 @@ import ai.djl.training.TrainingConfig
 import ai.djl.training.dataset.Dataset
 import ai.djl.training.dataset.RandomAccessDataset
 import ai.djl.training.listener.TrainingListener
+import ai.djl.training.optimizer.Adam
+import ai.djl.training.optimizer.learningrate.LearningRateTracker
 import ai.djl.training.util.ProgressBar
 import ai.djl.translate.Pipeline
 import com.waicool20.djl.util.SequentialBlock
@@ -116,7 +118,11 @@ private fun getDataset(usage: Dataset.Usage): RandomAccessDataset {
 }
 
 private fun getTrainingConfig(): TrainingConfig {
+    val optimizer = Adam.builder()
+        .optLearningRateTracker(LearningRateTracker.fixedLearningRate(0.0005f))
+        .build()
     return DefaultTrainingConfig(YoloV3Loss())
+        .optOptimizer(optimizer)
         .optDevices(arrayOf(Device.gpu()))
         .addTrainingListeners(*TrainingListener.Defaults.logging())
 }
