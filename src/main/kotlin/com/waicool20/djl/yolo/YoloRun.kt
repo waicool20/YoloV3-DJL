@@ -22,6 +22,8 @@ import ai.djl.translate.Pipeline
 import com.waicool20.djl.util.SequentialBlock
 import com.waicool20.djl.util.TopLeftXYToCenterXY
 import com.waicool20.djl.util.XYXYToXYWH
+import com.waicool20.djl.util.openWindowPreview
+import java.awt.GraphicsEnvironment
 import java.nio.file.Paths
 import javax.imageio.ImageIO
 
@@ -60,6 +62,7 @@ private fun predictYolo() {
     val image = BufferedImageUtils.fromFile(Paths.get("test.jpg"))
     val objects = predictor.predict(image)
     ImageVisualization.drawBoundingBoxes(image, objects)
+    if (!GraphicsEnvironment.isHeadless()) image.openWindowPreview()
     val out = Paths.get("").resolve("output.png")
     ImageIO.write(image, "png", out.toFile())
 }

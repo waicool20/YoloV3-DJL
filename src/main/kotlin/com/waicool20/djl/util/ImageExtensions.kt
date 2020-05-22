@@ -1,0 +1,27 @@
+package com.waicool20.djl.util
+
+import java.awt.Dimension
+import java.awt.Toolkit
+import java.awt.event.KeyEvent
+import java.awt.event.KeyListener
+import java.awt.image.BufferedImage
+import javax.swing.ImageIcon
+import javax.swing.JFrame
+import javax.swing.JLabel
+
+fun BufferedImage.openWindowPreview() {
+    val dim = Toolkit.getDefaultToolkit().screenSize
+    val frame = JFrame("Image")
+    frame.add(JLabel(ImageIcon(this)))
+    frame.setSize(width, height)
+    frame.setLocation(dim.width / 2 - frame.size.width / 2, dim.height / 2 - frame.size.height / 2)
+    frame.isVisible = true
+    frame.addKeyListener(object : KeyListener {
+        override fun keyTyped(event: KeyEvent) {
+            frame.removeKeyListener(this)
+            frame.dispose()
+        }
+        override fun keyPressed(event: KeyEvent) = Unit
+        override fun keyReleased(event: KeyEvent) = Unit
+    })
+}
