@@ -60,11 +60,11 @@ class YoloV3Loss(
 
             val xyLoss = run {
                 val xy = predXY.booleanMask(trueObj)
-                (xy - trueXY).square().mean() * lambdaCoord * weight
+                (xy - trueXY).square().sum() * lambdaCoord * weight
             }
             val whLoss = run {
                 val wh = predWH.booleanMask(trueObj).sqrt()
-                (wh - trueWH.sqrt()).square().mean() * lambdaCoord * weight
+                (wh - trueWH.sqrt()).square().sum() * lambdaCoord * weight
             }
             val objLoss = sigmoidBinaryCrossEntropyLoss().evaluate(
                 NDList(trueObj.toType(DataType.FLOAT32, true).booleanMask(trueObj)),
@@ -91,8 +91,8 @@ class YoloV3Loss(
             }
 
             val classLoss = sigmoidBinaryCrossEntropyLoss().evaluate(
-                NDList(predCls.booleanMask(trueObj)),
-                NDList(trueCls)
+                NDList(trueCls),
+                NDList(predCls.booleanMask(trueObj))
             )
 
             val totalLoss = xyLoss + whLoss + objLoss + noObjLoss + classLoss
