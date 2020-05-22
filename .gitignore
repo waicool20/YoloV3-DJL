@@ -184,3 +184,5 @@ gradle-app.setting
 
 
 *.params
+*.jpg
+*.png
