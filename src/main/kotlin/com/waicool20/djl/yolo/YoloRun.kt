@@ -50,6 +50,7 @@ private fun predictYolo() {
     model.block = predictBlock
 
     val translator = YoloTranslator(
+        iouThreshold = 0.2,
         threshold = 1.0,
         pipeline = pipeline,
         classes = listOf("Pikachu")
@@ -119,7 +120,7 @@ private fun getDataset(usage: Dataset.Usage): RandomAccessDataset {
 
 private fun getTrainingConfig(): TrainingConfig {
     val optimizer = Adam.builder()
-        .optLearningRateTracker(LearningRateTracker.fixedLearningRate(0.0005f))
+        .optLearningRateTracker(LearningRateTracker.fixedLearningRate(0.0001f))
         .build()
     return DefaultTrainingConfig(YoloV3Loss())
         .optOptimizer(optimizer)
