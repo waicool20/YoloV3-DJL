@@ -68,8 +68,11 @@ private fun trainYolo() {
     val yolov3 = YoloV3(numClasses = 1)
     val model = Model.newInstance()
     model.block = yolov3
+
+    var lastEpoch = 0
     try {
         model.load(Paths.get(""), "yolov3")
+        lastEpoch = model.getProperty("Epoch").toInt()
     } catch (e: Exception) {
         println("No weights found, training new weights")
     }
@@ -79,7 +82,7 @@ private fun trainYolo() {
     val inputShape = Shape(BATCH_SIZE.toLong(), 3, WIDTH.toLong(), HEIGHT.toLong())
     trainer.initialize(inputShape)
 
-    for (epoch in 0 until EPOCH) {
+    for (epoch in lastEpoch until (lastEpoch + EPOCH)) {
         for (batch in trainer.iterateDataset(trainDataset)) {
             trainer.trainBatch(batch)
             trainer.step()
