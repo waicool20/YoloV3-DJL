@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.plugin.KotlinPluginWrapper
 
 plugins {
     kotlin("jvm") version "1.4-M1"
+    application
 }
 
 group = "org.example"
@@ -46,4 +47,8 @@ tasks {
     compileTestKotlin {
         kotlinOptions.jvmTarget = "1.8"
     }
+}
+
+application {
+    mainClassName = "com.waicool20.djl.yolo.YoloRunKt"
 }
