@@ -12,7 +12,6 @@ import ai.djl.util.Pair
 import com.waicool20.djl.util.YoloUtils.bboxIOUs
 import com.waicool20.djl.util.YoloUtils.whIOU
 import com.waicool20.djl.util.fEllipsis
-import com.waicool20.djl.util.minus
 import com.waicool20.djl.util.plus
 import com.waicool20.djl.util.times
 
@@ -28,12 +27,10 @@ class YoloV3Loss(
             val prediction = predictions[layerIndex + 2]
 
             val anchors = predictions[1][layerIndex.toLong()].reshape(3, 2)
+            val batches = prediction.shape[0]
+            val nAnchors = prediction.shape[1]
             val stride = prediction.shape[2]
-
-            val predXY = prediction.get(NDIndex(prediction.fEllipsis() + "0:2"))
-            val predWH = prediction.get(NDIndex(prediction.fEllipsis() + "2:4"))
-            val predObj = prediction.get(NDIndex(prediction.fEllipsis() + "4"))
-            val predCls = prediction.get(NDIndex(prediction.fEllipsis() + "5:"))
+            val nClasses = prediction.shape[4] - 5
 
             val trueXY = label.get(NDIndex(label.fEllipsis() + "1:3"))
             val trueWH = label.get(NDIndex(label.fEllipsis() + "3:5"))
@@ -42,51 +39,51 @@ class YoloV3Loss(
                 val y = (trueXY.get(trueXY.fEllipsis() + 1) * stride).floor()
                 val ious = whIOU(trueWH, anchors)
                 val n = ious.argMax(1)
-                manager.zeros(predObj.shape).apply {
+                manager.zeros(Shape(batches, nAnchors, stride, stride)).apply {
                     for (b in 0 until ious.shape[0]) {
                         set(NDIndex(b, n.getLong(b), x.getFloat(b).toLong(), y.getFloat(b).toLong()), 1)
                     }
-                }.toType(DataType.BOOLEAN, false)
+                }
             }
-            val trueCls = manager.zeros(Shape(predCls.shape[0], predCls.shape[4])).apply {
+            val trueObjMask = trueObj.toType(DataType.BOOLEAN, false)
+            val trueCls = manager.zeros(Shape(batches, nClasses)).apply {
                 val trueClsIndex = label.get(NDIndex(label.fEllipsis() + "0"))
-                for (b in 0 until predCls.shape[0]) {
+                for (b in 0 until batches) {
                     val i = trueClsIndex.getFloat(b).toLong()
                     set(NDIndex(b, i), 1)
                 }
             }
+
+            val predXY = prediction.get(NDIndex(prediction.fEllipsis() + "0:2")).booleanMask(trueObjMask)
+            val predWH = prediction.get(NDIndex(prediction.fEllipsis() + "2:4")).booleanMask(trueObjMask)
+            val predObj = prediction.get(NDIndex(prediction.fEllipsis() + "4"))
+            val predCls = prediction.get(NDIndex(prediction.fEllipsis() + "5:")).booleanMask(trueObjMask)
+
+            val boxes1 = predXY.concat(predWH, 1)
+            val boxes2 = trueXY.concat(trueWH, 1)
+            val ious = bboxIOUs(boxes1, boxes2)
 
             val weight = (trueWH.get(NDIndex(":, 0")) * trueWH.get(NDIndex(":, 1")) * -1 + 2).mean().getFloat()
 
             val mse = l2Loss("MSE", weight * lambdaCoord.toFloat())
             val bce = sigmoidBinaryCrossEntropyLoss("BCE")
 
-            val xyLoss = run {
-                val xy = predXY.booleanMask(trueObj)
-                mse.evaluate(NDList(trueXY), NDList(xy))
-            }
-            val whLoss = run {
-                val wh = predWH.booleanMask(trueObj).sqrt()
-                val twh = trueWH.sqrt()
-                mse.evaluate(NDList(twh), NDList(wh))
-            }
+            val xyLoss = mse.evaluate(NDList(trueXY), NDList(predXY))
+            val whLoss = mse.evaluate(NDList(trueWH.sqrt()), NDList(predWH.sqrt()))
             val objLoss = bce.evaluate(
-                NDList(trueObj.toType(DataType.FLOAT32, true).booleanMask(trueObj)),
-                NDList(predObj.booleanMask(trueObj))
+                NDList(trueObj.booleanMask(trueObjMask)),
+                NDList(predObj.booleanMask(trueObjMask))
             )
 
             val noObjLoss = run {
-                val boxes1 = predXY.concat(predWH, 4).booleanMask(trueObj)
-                val boxes2 = trueXY.concat(trueWH, 1)
-                val ious = bboxIOUs(boxes1, boxes2)
                 val ignoreMask = ious.lt(ignoreThreshold)
-                val trueNoObjMask = trueObj.logicalNot()
+                val trueNoObjMask = trueObjMask.logicalNot()
 
-                val trueNoObj = trueObj.toType(DataType.FLOAT32, true).booleanMask(trueNoObjMask)
+                val trueNoObj = trueObj.booleanMask(trueNoObjMask)
                 val predNoObj = predObj.booleanMask(trueNoObjMask)
 
-                val trueExtraNoObj = trueObj.toType(DataType.FLOAT32, true).booleanMask(trueObj).booleanMask(ignoreMask)
-                val predExtraNoObj = predObj.booleanMask(trueObj).booleanMask(ignoreMask)
+                val trueExtraNoObj = trueObj.booleanMask(trueObjMask).booleanMask(ignoreMask)
+                val predExtraNoObj = predObj.booleanMask(trueObjMask).booleanMask(ignoreMask)
 
                 bce.evaluate(
                     NDList(trueNoObj.concat(trueExtraNoObj)),
@@ -94,10 +91,7 @@ class YoloV3Loss(
                 ) * lambdaNoObj
             }
 
-            val classLoss = bce.evaluate(
-                NDList(trueCls),
-                NDList(predCls.booleanMask(trueObj))
-            )
+            val classLoss = bce.evaluate(NDList(trueCls), NDList(predCls))
 
             val totalLoss = xyLoss + whLoss + objLoss + noObjLoss + classLoss
             return totalLoss
