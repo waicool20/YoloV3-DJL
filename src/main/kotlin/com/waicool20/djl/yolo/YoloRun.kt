@@ -27,12 +27,24 @@ import java.awt.GraphicsEnvironment
 import java.nio.file.Paths
 import javax.imageio.ImageIO
 
-private val BATCH_SIZE = 1
 private val WIDTH = 416
 private val HEIGHT = 416
-private val EPOCH = 32
 
 private val pipeline = Pipeline(Resize(WIDTH, HEIGHT), ToTensor())
+
+// Training parameters
+
+private val BATCH_SIZE = 1
+private val EPOCH = 64
+private val IGNORE_THRESHOLD = 0.5
+private val LAMBDA_COORD = 5.0
+private val LAMBDA_NOOBJ = 0.5
+private val LEARNING_RATE = 1e-5f
+
+// Predict parameters
+
+private val IOU_THRESHOLD = 0.2
+private val PREDICT_THRESHOLD = 0.99
 
 fun main() {
     //predictYolo()
@@ -52,8 +64,8 @@ private fun predictYolo() {
     model.block = predictBlock
 
     val translator = YoloTranslator(
-        iouThreshold = 0.2,
-        threshold = 1.0,
+        iouThreshold = IOU_THRESHOLD,
+        threshold = PREDICT_THRESHOLD,
         pipeline = pipeline,
         classes = listOf("Pikachu")
     )
@@ -61,6 +73,7 @@ private fun predictYolo() {
     val predictor = model.newPredictor(translator)
     val image = BufferedImageUtils.fromFile(Paths.get("test.jpg"))
     val objects = predictor.predict(image)
+    println(objects)
     ImageVisualization.drawBoundingBoxes(image, objects)
     if (!GraphicsEnvironment.isHeadless()) image.openWindowPreview()
     val out = Paths.get("").resolve("output.png")
@@ -80,6 +93,7 @@ private fun trainYolo() {
         model.load(Paths.get(""), "yolov3")
         lastEpoch = model.getProperty("Epoch").toInt()
     } catch (e: Exception) {
+        e.printStackTrace()
         println("No weights found, training new weights")
     }
 
@@ -88,7 +102,7 @@ private fun trainYolo() {
     val inputShape = Shape(BATCH_SIZE.toLong(), 3, WIDTH.toLong(), HEIGHT.toLong())
     trainer.initialize(inputShape)
 
-    for (epoch in lastEpoch until (lastEpoch + EPOCH)) {
+    for (epoch in lastEpoch until EPOCH) {
         for (batch in trainer.iterateDataset(trainDataset)) {
             trainer.trainBatch(batch)
             trainer.step()
@@ -123,9 +137,9 @@ private fun getDataset(usage: Dataset.Usage): RandomAccessDataset {
 
 private fun getTrainingConfig(): TrainingConfig {
     val optimizer = Adam.builder()
-        .optLearningRateTracker(LearningRateTracker.fixedLearningRate(0.0001f))
+        .optLearningRateTracker(LearningRateTracker.fixedLearningRate(LEARNING_RATE))
         .build()
-    return DefaultTrainingConfig(YoloV3Loss())
+    return DefaultTrainingConfig(YoloV3Loss(IGNORE_THRESHOLD, LAMBDA_COORD, LAMBDA_NOOBJ))
         .optOptimizer(optimizer)
         .optDevices(arrayOf(Device.gpu()))
         .addTrainingListeners(*TrainingListener.Defaults.logging())
