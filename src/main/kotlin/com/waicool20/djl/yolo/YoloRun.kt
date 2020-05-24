@@ -47,9 +47,12 @@ private val LOSS_TYPE = YoloV3Loss.Type.CIOU
 private val IOU_THRESHOLD = 0.2
 private val PREDICT_THRESHOLD = 0.99
 
-fun main() {
-    //predictYolo()
-    trainYolo()
+fun main(args: Array<String>) {
+    if (args.contains("--predict")) {
+        predictYolo()
+    } else {
+        trainYolo()
+    }
 }
 
 private fun predictYolo() {
