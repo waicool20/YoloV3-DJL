@@ -5,7 +5,7 @@ for learning how to implement neural networks. Probably doesn't work right now.
 
 # References
 
-https://github.com/ultralytics  
+https://github.com/ultralytics/yolov3/
 https://github.com/eriklindernoren/PyTorch-YOLOv3  
 https://github.com/Fermes/yolov3-mxnet  
 https://towardsdatascience.com/dive-really-deep-into-yolo-v3-a-beginners-guide-9e3d2666280e  
