@@ -9,6 +9,7 @@ import ai.djl.ndarray.types.Shape
 import ai.djl.training.loss.AbstractCompositeLoss
 import ai.djl.training.loss.Loss
 import ai.djl.util.Pair
+import com.waicool20.djl.util.YoloUtils
 import com.waicool20.djl.util.YoloUtils.bboxIOUs
 import com.waicool20.djl.util.YoloUtils.whIOU
 import com.waicool20.djl.util.fEllipsis
@@ -18,8 +19,12 @@ import com.waicool20.djl.util.times
 class YoloV3Loss(
     val ignoreThreshold: Double = 0.5,
     val lambdaCoord: Double = 5.0,
-    val lambdaNoObj: Double = 0.5
+    val lambdaNoObj: Double = 0.5,
+    val lossType: Type = Type.STANDARD
 ) : AbstractCompositeLoss("YoloV3Loss") {
+    enum class Type {
+        STANDARD, IOU, GIOU, DIOU, CIOU
+    }
 
     private inner class YoloV3LayerLoss(private val layerIndex: Int) : Loss("YoloV3LayerLoss") {
         override fun evaluate(labels: NDList, predictions: NDList): NDArray {
@@ -63,12 +68,18 @@ class YoloV3Loss(
             val boxes2 = trueXY.concat(trueWH, 1)
             val ious = bboxIOUs(boxes1, boxes2)
 
-            val weight = (trueWH.get(NDIndex(":, 0")) * trueWH.get(NDIndex(":, 1")) * -1 + 2).mean().getFloat()
+            val weight = (trueWH.get(NDIndex(":, 0")) * trueWH.get(NDIndex(":, 1")).neg() + 2).mean().getFloat()
 
             val mse = l2Loss("MSE", weight * lambdaCoord.toFloat())
             val bce = sigmoidBinaryCrossEntropyLoss("BCE")
 
-            val xyLoss = mse.evaluate(NDList(trueXY), NDList(predXY))
+            val xyLoss = when (lossType) {
+                Type.STANDARD -> mse.evaluate(NDList(trueXY), NDList(predXY))
+                Type.IOU -> ious.mean() * lambdaCoord * weight
+                Type.GIOU -> (bboxIOUs(boxes1, boxes2, YoloUtils.IOUType.GIOU).neg() + 1).mean() * lambdaCoord * weight
+                Type.DIOU -> (bboxIOUs(boxes1, boxes2, YoloUtils.IOUType.DIOU).neg() + 1).mean() * lambdaCoord * weight
+                Type.CIOU -> (bboxIOUs(boxes1, boxes2, YoloUtils.IOUType.CIOU).neg() + 1).mean() * lambdaCoord * weight
+            }
             val whLoss = mse.evaluate(NDList(trueWH.sqrt()), NDList(predWH.sqrt()))
             val objLoss = bce.evaluate(
                 NDList(trueObj.booleanMask(trueObjMask)),

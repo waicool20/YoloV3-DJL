@@ -40,6 +40,7 @@ private val IGNORE_THRESHOLD = 0.5
 private val LAMBDA_COORD = 5.0
 private val LAMBDA_NOOBJ = 0.5
 private val LEARNING_RATE = 1e-5f
+private val LOSS_TYPE = YoloV3Loss.Type.CIOU
 
 // Predict parameters
 
@@ -139,7 +140,7 @@ private fun getTrainingConfig(): TrainingConfig {
     val optimizer = Adam.builder()
         .optLearningRateTracker(LearningRateTracker.fixedLearningRate(LEARNING_RATE))
         .build()
-    return DefaultTrainingConfig(YoloV3Loss(IGNORE_THRESHOLD, LAMBDA_COORD, LAMBDA_NOOBJ))
+    return DefaultTrainingConfig(YoloV3Loss(IGNORE_THRESHOLD, LAMBDA_COORD, LAMBDA_NOOBJ, LOSS_TYPE))
         .optOptimizer(optimizer)
         .optDevices(arrayOf(Device.gpu()))
         .addTrainingListeners(*TrainingListener.Defaults.logging())
