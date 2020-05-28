@@ -18,10 +18,12 @@ import ai.djl.training.optimizer.Adam
 import ai.djl.training.optimizer.learningrate.LearningRateTracker
 import ai.djl.training.util.ProgressBar
 import ai.djl.translate.Pipeline
+import ch.qos.logback.classic.Logger
 import com.waicool20.djl.util.SequentialBlock
 import com.waicool20.djl.util.TopLeftXYToCenterXY
 import com.waicool20.djl.util.XYXYToXYWH
 import com.waicool20.djl.util.openWindowPreview
+import org.slf4j.LoggerFactory
 import java.awt.GraphicsEnvironment
 import java.awt.image.BufferedImage
 import java.nio.file.Paths
@@ -46,6 +48,8 @@ private val LOSS_TYPE = YoloV3Loss.Type.CIOU
 
 private val IOU_THRESHOLD = 0.2
 private val PREDICT_THRESHOLD = 0.99
+
+private val logger = LoggerFactory.getLogger("YoloRun")
 
 fun main(args: Array<String>) {
     if (args.contains("--predict")) {
@@ -77,7 +81,7 @@ private fun predictYolo() {
     val predictor = model.newPredictor(translator)
     val image = ImageFactory.getInstance().fromFile(Paths.get("test.jpg"))
     val objects = predictor.predict(image)
-    println(objects)
+    logger.info(objects.toString())
     image.drawBoundingBoxes(objects)
     if (!GraphicsEnvironment.isHeadless()) image.openWindowPreview()
     val out = Paths.get("").resolve("output.png")
@@ -98,7 +102,7 @@ private fun trainYolo() {
         lastEpoch = model.getProperty("Epoch").toInt()
     } catch (e: Exception) {
         e.printStackTrace()
-        println("No weights found, training new weights")
+        logger.warn("No weights found, training new weights (${e.message}")
     }
 
     val trainer = model.newTrainer(getTrainingConfig())
