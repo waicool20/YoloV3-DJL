@@ -33,7 +33,7 @@ class YoloV3(
             33f, 23f
         ),
     )
-) : AbstractBlock() {
+) : AbstractBlock(0) {
     private val skip36Block by lazy {
         SequentialBlock {
             ConvBlock(size = 3, numFilters = 32, stride = 1)
@@ -142,6 +142,16 @@ class YoloV3(
         }
     }
 
+    init {
+        addChildBlock("Skip36Block", skip36Block)
+        addChildBlock("Skip61Block", skip61Block)
+        addChildBlock("Yolo82Block", yolo82Block)
+        addChildBlock("Yolo82PreConcatBlock", yolo82PreConcatBlock)
+        addChildBlock("Yolo94Block", yolo94Block)
+        addChildBlock("Yolo94PreConcatBlock", yolo94PreConcatBlock)
+        addChildBlock("Yolo106Block", yolo106Block)
+    }
+
     private lateinit var manager: NDManager
 
     override fun forward(
@@ -215,55 +225,12 @@ class YoloV3(
         return NDArrays.concat(NDList(x, y, w, h, p, c), 4)
     }
 
-    override fun getChildren(): BlockList {
-        val list = BlockList()
-        list.addAll(skip36Block.children)
-        list.addAll(skip61Block.children)
-        list.addAll(yolo82Block.children)
-        list.addAll(yolo82PreConcatBlock.children)
-        list.addAll(yolo94Block.children)
-        list.addAll(yolo94PreConcatBlock.children)
-        list.addAll(yolo106Block.children)
-        return list
-    }
-
-    override fun getParameterShape(name: String, inputShapes: Array<out Shape>): Shape {
-        error("No Parameter Shape")
-    }
-
-    override fun loadParameters(manager: NDManager, inputStream: DataInputStream) {
-        readInputShapes(inputStream)
-        skip36Block.loadParameters(manager, inputStream)
-        skip61Block.loadParameters(manager, inputStream)
-        yolo82Block.loadParameters(manager, inputStream)
-        yolo82PreConcatBlock.loadParameters(manager, inputStream)
-        yolo94Block.loadParameters(manager, inputStream)
-        yolo94PreConcatBlock.loadParameters(manager, inputStream)
-        yolo106Block.loadParameters(manager, inputStream)
-    }
-
-    override fun saveParameters(outputStream: DataOutputStream) {
-        saveInputShapes(outputStream)
-        skip36Block.saveParameters(outputStream)
-        skip61Block.saveParameters(outputStream)
-        yolo82Block.saveParameters(outputStream)
-        yolo82PreConcatBlock.saveParameters(outputStream)
-        yolo94Block.saveParameters(outputStream)
-        yolo94PreConcatBlock.saveParameters(outputStream)
-        yolo106Block.saveParameters(outputStream)
-    }
-
     override fun getOutputShapes(manager: NDManager, inputShapes: Array<out Shape>): Array<Shape> {
         // TODO
         return arrayOf(Shape(256, 256))
     }
 
-    override fun getDirectParameters(): List<Parameter> {
-        return emptyList()
-    }
-
-    override fun initialize(manager: NDManager, dataType: DataType, vararg inputShapes: Shape): Array<Shape> {
-        this.inputShapes = inputShapes
+    override fun initializeChildBlocks(manager: NDManager, dataType: DataType, vararg inputShapes: Shape) {
         var shape = inputShapes
         val skip36Shape = skip36Block.initialize(manager, dataType, *shape)
         val skip61Shape = skip61Block.initialize(manager, dataType, *skip36Shape)
@@ -275,12 +242,11 @@ class YoloV3(
             Shape(shape[0][0], shape[0][1] + skip61Shape[0][1], shape[0][2], shape[0][3])
         )
         shape = yolo94PreConcatBlock.initialize(manager, dataType, *shape)
-        shape = yolo106Block.initialize(
+        yolo106Block.initialize(
             manager,
             dataType,
             Shape(shape[0][0], shape[0][1] + skip36Shape[0][1], shape[0][2], shape[0][3])
         )
-        return getOutputShapes(manager, shape)
     }
 
     private fun SequentialBlock.ConvBlock(

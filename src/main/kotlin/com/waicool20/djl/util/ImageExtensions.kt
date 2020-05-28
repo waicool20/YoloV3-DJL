@@ -1,5 +1,6 @@
 package com.waicool20.djl.util
 
+import ai.djl.modality.cv.Image
 import java.awt.Dimension
 import java.awt.Toolkit
 import java.awt.event.KeyEvent
@@ -10,10 +11,10 @@ import javax.swing.ImageIcon
 import javax.swing.JFrame
 import javax.swing.JLabel
 
-fun BufferedImage.openWindowPreview() {
+fun Image.openWindowPreview() {
     val dim = Toolkit.getDefaultToolkit().screenSize
     val frame = JFrame("Image")
-    frame.add(JLabel(ImageIcon(this)))
+    frame.add(JLabel(ImageIcon(wrappedImage as BufferedImage)))
     frame.setSize(width, height)
     frame.setLocation(dim.width / 2 - frame.size.width / 2, dim.height / 2 - frame.size.height / 2)
     frame.isVisible = true
@@ -22,6 +23,7 @@ fun BufferedImage.openWindowPreview() {
             frame.removeKeyListener(this)
             frame.dispose()
         }
+
         override fun keyPressed(event: KeyEvent) = Unit
         override fun keyReleased(event: KeyEvent) = Unit
     })

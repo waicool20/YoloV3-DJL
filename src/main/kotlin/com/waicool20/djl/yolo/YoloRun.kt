@@ -4,10 +4,9 @@ import ai.djl.Device
 import ai.djl.Model
 import ai.djl.basicdataset.PikachuDetection
 import ai.djl.metric.Metrics
-import ai.djl.modality.cv.ImageVisualization
+import ai.djl.modality.cv.ImageFactory
 import ai.djl.modality.cv.transform.Resize
 import ai.djl.modality.cv.transform.ToTensor
-import ai.djl.modality.cv.util.BufferedImageUtils
 import ai.djl.ndarray.NDList
 import ai.djl.ndarray.types.Shape
 import ai.djl.training.DefaultTrainingConfig
@@ -24,6 +23,7 @@ import com.waicool20.djl.util.TopLeftXYToCenterXY
 import com.waicool20.djl.util.XYXYToXYWH
 import com.waicool20.djl.util.openWindowPreview
 import java.awt.GraphicsEnvironment
+import java.awt.image.BufferedImage
 import java.nio.file.Paths
 import javax.imageio.ImageIO
 
@@ -75,13 +75,13 @@ private fun predictYolo() {
     )
 
     val predictor = model.newPredictor(translator)
-    val image = BufferedImageUtils.fromFile(Paths.get("test.jpg"))
+    val image = ImageFactory.getInstance().fromFile(Paths.get("test.jpg"))
     val objects = predictor.predict(image)
     println(objects)
-    ImageVisualization.drawBoundingBoxes(image, objects)
+    image.drawBoundingBoxes(objects)
     if (!GraphicsEnvironment.isHeadless()) image.openWindowPreview()
     val out = Paths.get("").resolve("output.png")
-    ImageIO.write(image, "png", out.toFile())
+    ImageIO.write(image.wrappedImage as BufferedImage, "png", out.toFile())
 }
 
 private fun trainYolo() {
@@ -111,12 +111,10 @@ private fun trainYolo() {
             trainer.trainBatch(batch)
             trainer.step()
             batch.close()
-            System.gc()
         }
         for (batch in trainer.iterateDataset(testDataset)) {
             trainer.validateBatch(batch)
             batch.close()
-            System.gc()
         }
 
         trainer.endEpoch()
