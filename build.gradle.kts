@@ -19,15 +19,15 @@ dependencies {
         val Kotlin by lazy { plugins.getPlugin(KotlinPluginWrapper::class).kotlinPluginVersion }
         val KotlinCoroutines = "1.3.5"
         val Jackson = "2.11.0"
+        val DJL = "0.6.0-SNAPSHOT"
     }
 
     implementation(kotlin("stdlib-jdk8"))
     //implementation(fileTree( "dir" to "libs", "include" to "*.jar"))
-    implementation("ai.djl:api:0.5.0")
-    implementation("ai.djl:model-zoo:0.5.0")
-    implementation("ai.djl:basicdataset:0.5.0")
-    implementation("ai.djl.mxnet:mxnet-engine:0.5.0")
-    //implementation("ai.djl.mxnet:mxnet-native-auto:1.6.0")
+    implementation("ai.djl","api", versions.DJL)
+    implementation("ai.djl","model-zoo", versions.DJL)
+    implementation("ai.djl","basicdataset", versions.DJL)
+    implementation("ai.djl.mxnet", "mxnet-engine", versions.DJL)
     implementation("ai.djl.mxnet:mxnet-native-auto:1.7.0-a-SNAPSHOT")
     //implementation("ai.djl.mxnet:mxnet-native-cu102mkl:1.7.0-a-SNAPSHOT")
 
