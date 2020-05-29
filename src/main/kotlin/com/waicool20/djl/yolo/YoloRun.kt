@@ -10,6 +10,7 @@ import ai.djl.modality.cv.transform.ToTensor
 import ai.djl.ndarray.NDList
 import ai.djl.ndarray.types.Shape
 import ai.djl.training.DefaultTrainingConfig
+import ai.djl.training.EasyTrain
 import ai.djl.training.TrainingConfig
 import ai.djl.training.dataset.Dataset
 import ai.djl.training.dataset.RandomAccessDataset
@@ -18,7 +19,6 @@ import ai.djl.training.optimizer.Adam
 import ai.djl.training.optimizer.learningrate.LearningRateTracker
 import ai.djl.training.util.ProgressBar
 import ai.djl.translate.Pipeline
-import ch.qos.logback.classic.Logger
 import com.waicool20.djl.util.SequentialBlock
 import com.waicool20.djl.util.TopLeftXYToCenterXY
 import com.waicool20.djl.util.XYXYToXYWH
@@ -29,6 +29,7 @@ import java.awt.image.BufferedImage
 import java.nio.file.Paths
 import javax.imageio.ImageIO
 
+private val MODEL_NAME = "yolov3"
 private val WIDTH = 416
 private val HEIGHT = 416
 
@@ -61,9 +62,9 @@ fun main(args: Array<String>) {
 
 private fun predictYolo() {
     val yolov3 = YoloV3(numClasses = 1)
-    val model = Model.newInstance()
+    val model = Model.newInstance(MODEL_NAME)
     model.block = yolov3
-    model.load(Paths.get(""), "yolov3")
+    model.load(Paths.get(""), MODEL_NAME)
 
     val predictBlock = SequentialBlock {
         add(model.block)
@@ -93,16 +94,15 @@ private fun trainYolo() {
     val testDataset = getDataset(Dataset.Usage.TEST)
 
     val yolov3 = YoloV3(numClasses = 1)
-    val model = Model.newInstance()
+    val model = Model.newInstance(MODEL_NAME)
     model.block = yolov3
 
     var lastEpoch = 0
     try {
-        model.load(Paths.get(""), "yolov3")
-        lastEpoch = model.getProperty("Epoch").toInt()
+        model.load(Paths.get(""), MODEL_NAME)
+        lastEpoch = model.getProperty("Epoch").toInt() + 1
     } catch (e: Exception) {
-        e.printStackTrace()
-        logger.warn("No weights found, training new weights (${e.message}")
+        logger.warn("No weights found, training new weights (${e.message})")
     }
 
     val trainer = model.newTrainer(getTrainingConfig())
@@ -112,22 +112,22 @@ private fun trainYolo() {
 
     for (epoch in lastEpoch until EPOCH) {
         for (batch in trainer.iterateDataset(trainDataset)) {
-            trainer.trainBatch(batch)
+            EasyTrain.trainBatch(trainer, batch)
             trainer.step()
             batch.close()
         }
         for (batch in trainer.iterateDataset(testDataset)) {
-            trainer.validateBatch(batch)
+            EasyTrain.validateBatch(trainer, batch)
             batch.close()
         }
 
-        trainer.endEpoch()
+        trainer.notifyListeners { it.onEpoch(trainer) }
         trainer.model.apply {
             setProperty("Epoch", epoch.toString())
-            save(Paths.get(""), "yolov3")
+            save(Paths.get(""), MODEL_NAME)
         }
     }
-    model.save(Paths.get(""), "yolov3")
+    model.save(Paths.get(""), MODEL_NAME)
 }
 
 private fun getDataset(usage: Dataset.Usage): RandomAccessDataset {
@@ -148,5 +148,5 @@ private fun getTrainingConfig(): TrainingConfig {
     return DefaultTrainingConfig(YoloV3Loss(IGNORE_THRESHOLD, LAMBDA_COORD, LAMBDA_NOOBJ, LOSS_TYPE))
         .optOptimizer(optimizer)
         .optDevices(arrayOf(Device.gpu()))
-        .addTrainingListeners(*TrainingListener.Defaults.logging())
+        .addTrainingListeners(*TrainingListener.Defaults.logging("train-log"))
 }
