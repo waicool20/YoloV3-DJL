@@ -37,13 +37,15 @@ private val pipeline = Pipeline(Resize(WIDTH, HEIGHT), ToTensor())
 
 // Training parameters
 
-private val BATCH_SIZE = 1
-private val EPOCH = 64
+private val BATCH_SIZE = 2
+private val EPOCH = 48
 private val IGNORE_THRESHOLD = 0.5
 private val LAMBDA_COORD = 5.0
 private val LAMBDA_NOOBJ = 0.5
 private val LEARNING_RATE = 1e-5f
-private val LOSS_TYPE = YoloV3Loss.Type.CIOU
+private val LOSS_TYPE = YoloV3Loss.Type.STANDARD
+private val FOCAL_ALPHA = 0.5
+private val FOCAL_GAMMA = 2.0
 
 // Predict parameters
 
@@ -145,7 +147,15 @@ private fun getTrainingConfig(): TrainingConfig {
     val optimizer = Adam.builder()
         .optLearningRateTracker(LearningRateTracker.fixedLearningRate(LEARNING_RATE))
         .build()
-    return DefaultTrainingConfig(YoloV3Loss(IGNORE_THRESHOLD, LAMBDA_COORD, LAMBDA_NOOBJ, LOSS_TYPE))
+    val loss = YoloV3Loss(
+        IGNORE_THRESHOLD,
+        LAMBDA_COORD,
+        LAMBDA_NOOBJ,
+        LOSS_TYPE,
+        FOCAL_ALPHA,
+        FOCAL_GAMMA
+    )
+    return DefaultTrainingConfig(loss)
         .optOptimizer(optimizer)
         .optDevices(arrayOf(Device.gpu()))
         .addTrainingListeners(*TrainingListener.Defaults.logging("train-log"))

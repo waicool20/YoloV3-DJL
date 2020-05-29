@@ -9,18 +9,17 @@ import ai.djl.ndarray.types.Shape
 import ai.djl.training.loss.AbstractCompositeLoss
 import ai.djl.training.loss.Loss
 import ai.djl.util.Pair
-import com.waicool20.djl.util.YoloUtils
+import com.waicool20.djl.util.*
 import com.waicool20.djl.util.YoloUtils.bboxIOUs
 import com.waicool20.djl.util.YoloUtils.whIOU
-import com.waicool20.djl.util.fEllipsis
-import com.waicool20.djl.util.plus
-import com.waicool20.djl.util.times
 
 class YoloV3Loss(
     val ignoreThreshold: Double = 0.5,
     val lambdaCoord: Double = 5.0,
     val lambdaNoObj: Double = 0.5,
-    val lossType: Type = Type.STANDARD
+    val lossType: Type = Type.STANDARD,
+    val focalAlpha: Double = 0.5,
+    val focalGamma: Double = 2.0
 ) : AbstractCompositeLoss("YoloV3Loss") {
     enum class Type {
         STANDARD, IOU, GIOU, DIOU, CIOU
@@ -66,25 +65,34 @@ class YoloV3Loss(
 
             val boxes1 = predXY.concat(predWH, 1)
             val boxes2 = trueXY.concat(trueWH, 1)
-            val ious = bboxIOUs(boxes1, boxes2)
+            val ious = when (lossType) {
+                Type.STANDARD, Type.IOU -> bboxIOUs(boxes1, boxes2, YoloUtils.IOUType.IOU)
+                Type.GIOU -> bboxIOUs(boxes1, boxes2, YoloUtils.IOUType.GIOU)
+                Type.DIOU -> bboxIOUs(boxes1, boxes2, YoloUtils.IOUType.DIOU)
+                Type.CIOU -> bboxIOUs(boxes1, boxes2, YoloUtils.IOUType.CIOU)
+            }
 
-            val weight = (trueWH.get(NDIndex(":, 0")) * trueWH.get(NDIndex(":, 1")).neg() + 2).mean().getFloat()
+            val weight = (trueWH.get(NDIndex(":, 0")) * trueWH.get(NDIndex(":, 1")).neg() + 2)
 
-            val mse = l2Loss("MSE", weight * lambdaCoord.toFloat())
             val bce = sigmoidBinaryCrossEntropyLoss("BCE")
 
             val xyLoss = when (lossType) {
-                Type.STANDARD -> mse.evaluate(NDList(trueXY), NDList(predXY))
-                Type.IOU -> ious.mean() * lambdaCoord * weight
-                Type.GIOU -> (bboxIOUs(boxes1, boxes2, YoloUtils.IOUType.GIOU).neg() + 1).mean() * lambdaCoord * weight
-                Type.DIOU -> (bboxIOUs(boxes1, boxes2, YoloUtils.IOUType.DIOU).neg() + 1).mean() * lambdaCoord * weight
-                Type.CIOU -> (bboxIOUs(boxes1, boxes2, YoloUtils.IOUType.CIOU).neg() + 1).mean() * lambdaCoord * weight
+                Type.STANDARD -> ((trueXY - predXY).square() * weight * lambdaCoord).mean()
+                else -> (ious.neg() + 1).mean() * weight * lambdaCoord
             }
-            val whLoss = mse.evaluate(NDList(trueWH.sqrt()), NDList(predWH.sqrt()))
-            val objLoss = bce.evaluate(
-                NDList(trueObj.booleanMask(trueObjMask)),
-                NDList(predObj.booleanMask(trueObjMask))
-            )
+            val whLoss = when (lossType) {
+                Type.STANDARD -> ((trueWH.sqrt() - predWH.sqrt()).square() * weight * lambdaCoord).mean()
+                else -> null
+            }
+
+            val trueObjMasked = trueObj.booleanMask(trueObjMask)
+            val predObjMasked = predObj.booleanMask(trueObjMask)
+
+            val objLoss = run {
+                //TODO Not sure about if this is how focal loss is implemented
+                val focalScaling = (trueObjMasked - predObjMasked).abs().pow(focalGamma) * focalAlpha
+                bce.evaluate(NDList(predObjMasked), NDList(trueObjMasked)) * focalScaling.mean()
+            }
 
             val noObjLoss = run {
                 val ignoreMask = ious.lt(ignoreThreshold)
@@ -93,18 +101,21 @@ class YoloV3Loss(
                 val trueNoObj = trueObj.booleanMask(trueNoObjMask)
                 val predNoObj = predObj.booleanMask(trueNoObjMask)
 
-                val trueExtraNoObj = trueObj.booleanMask(trueObjMask).booleanMask(ignoreMask)
-                val predExtraNoObj = predObj.booleanMask(trueObjMask).booleanMask(ignoreMask)
+                //TODO Not sure about if this is how focal loss is implemented
+                val focalScaling = (trueNoObj - predNoObj).abs().pow(focalGamma) * focalAlpha
 
+                val trueExtraNoObj = trueObjMasked.booleanMask(ignoreMask)
+                val predExtraNoObj = predObjMasked.booleanMask(ignoreMask)
                 bce.evaluate(
-                    NDList(trueNoObj.concat(trueExtraNoObj)),
-                    NDList(predNoObj.concat(predExtraNoObj))
-                ) * lambdaNoObj
+                    NDList(predNoObj.concat(predExtraNoObj)),
+                    NDList(trueNoObj.concat(trueExtraNoObj))
+                ) * lambdaNoObj * focalScaling.mean()
             }
 
-            val classLoss = bce.evaluate(NDList(trueCls), NDList(predCls))
+            val classLoss = bce.evaluate(NDList(predCls), NDList(trueCls))
 
-            val totalLoss = xyLoss + whLoss + objLoss + noObjLoss + classLoss
+            var totalLoss = xyLoss + objLoss + noObjLoss + classLoss
+            if (whLoss != null) totalLoss = totalLoss + whLoss
             return totalLoss
         }
     }
