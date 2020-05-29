@@ -17,7 +17,7 @@ object YoloUtils {
         val wh1 = iwh1.expandDims(1)
         val wh2 = iwh2.expandDims(0)
         val inter = NDArrays.minimum(wh1, wh2).prod(intArrayOf(2))
-        return inter / (wh1.prod(intArrayOf(2)) + wh2.prod(intArrayOf(2)) - inter)
+        return inter / (wh1.prod(intArrayOf(2)) + wh2.prod(intArrayOf(2)) - inter + 1e-16)
     }
 
     fun bboxIOUs(boxes1: NDArray, boxes2: NDArray, type: IOUType = IOUType.IOU): NDArray {
@@ -52,13 +52,12 @@ object YoloUtils {
 
         val c2 = cw.square() + ch.square() + 1e-16
         val rho2 = (((b2x1 + b2x2) - (b1x1 + b1x2)).square() + ((b2y1 + b2y2) - (b1y1 + b1y2)).square()) / 4
-        val diou = iou - rho2 / c2
+        val diou = iou - (rho2 / c2)
         if (type == IOUType.DIOU) return diou
         if (type == IOUType.CIOU) {
             val c = 0.405284735 // 4 / pi^2
-            val g = w1.square() + h1.square()
-            val v = ((w2 / h2).atan() - (w1 / h1).atan()).square() * c * g + 1e-16
-            val a = v / ((iou.neg() + 1) + v)
+            val v = (((w2 / h2).atan() - (w1 / h1).atan()).square() * c + 1e-16).gradDetach()
+            val a = (v / ((iou.neg() + 1) + v)).gradDetach()
             return diou - a * v
         }
         error("Invalid IOU type")
