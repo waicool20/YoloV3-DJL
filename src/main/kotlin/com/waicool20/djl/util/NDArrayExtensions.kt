@@ -1,6 +1,12 @@
 package com.waicool20.djl.util
 
+import ai.djl.mxnet.engine.MxNDArray
+import ai.djl.mxnet.jna.JnaUtils
+import ai.djl.mxnet.jna.MxnetLibrary
 import ai.djl.ndarray.NDArray
+import com.sun.jna.ptr.PointerByReference
+import kotlin.reflect.full.staticProperties
+import kotlin.reflect.jvm.isAccessible
 
 fun NDArray.fEllipsis() = ":,".repeat(shape.shape.size - 1)
 fun NDArray.bEllipsis() = ",:".repeat(shape.shape.size - 1)
@@ -42,4 +48,16 @@ operator fun NDArray.divAssign(array: NDArray) {
 
 operator fun NDArray.divAssign(number: Number) {
     divi(number)
+}
+
+private val MXLIB by lazy {
+    JnaUtils::class.staticProperties.find { it.name == "LIB" }
+        ?.apply { isAccessible = true }
+        ?.invoke() as? MxnetLibrary
+}
+
+fun NDArray.gradDetach(): NDArray {
+    val p = (this as MxNDArray).handle
+    MXLIB?.MXNDArrayDetach(p, PointerByReference(p))
+    return this
 }
