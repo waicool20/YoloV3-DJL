@@ -10,9 +10,36 @@ import kotlin.math.min
 
 object YoloUtils {
     enum class IOUType {
-        IOU, GIOU, DIOU, CIOU
+        /**
+         * Standard Intersection over Union
+         */
+        IOU,
+
+        /**
+         * Generalized Intersection over Union
+         */
+        GIOU,
+
+        /**
+         * Distance Intersection over Union
+         */
+        DIOU,
+
+        /**
+         * Complete Intersection over Union
+         */
+        CIOU
     }
 
+    /**
+     * This calculates the iou between two boxes that share the same center point
+     * hence the need for width and height only.
+     *
+     * @param iwh1 Box 1 width and height (bs, m, 2)
+     * @param iwh2 Box 2 width and height (bs, n, 2)
+     *
+     * @return IOUs (bs, m*n)
+     */
     fun whIOU(iwh1: NDArray, iwh2: NDArray): NDArray {
         val wh1 = iwh1.expandDims(1)
         val wh2 = iwh2.expandDims(0)
@@ -20,6 +47,15 @@ object YoloUtils {
         return inter / (wh1.prod(intArrayOf(2)) + wh2.prod(intArrayOf(2)) - inter + 1e-16)
     }
 
+    /**
+     * Calculates the corresponding IOU between boxes
+     *
+     * @param boxes1 Box 1 center based XYWH (bs, 4)
+     * @param boxes2 Box 2 center based XYWH (bs, 4)
+     * @param type Type of IOU to calculate
+     *
+     * @return IOUs (bs)
+     */
     fun bboxIOUs(boxes1: NDArray, boxes2: NDArray, type: IOUType = IOUType.IOU): NDArray {
         val (b1x1, b1x2, b1y1, b1y2) = centerXYWHToXYXY(boxes1)
         val (b2x1, b2x2, b2y1, b2y2) = centerXYWHToXYXY(boxes2)
@@ -63,6 +99,14 @@ object YoloUtils {
         error("Invalid IOU type")
     }
 
+    /**
+     * Calculates the standard IOU between boxes
+     *
+     * @param box1 Box 1 center based XYWH (4)
+     * @param box2 Box 2 center based XYWH (4)
+     *
+     * @return IOU as Float
+     */
     fun bboxIOU(box1: NDArray, box2: NDArray): Float {
         val b1x1 = box1.getFloat(0) - box1.getFloat(2) / 2
         val b1x2 = box1.getFloat(0) + box1.getFloat(2) / 2
@@ -86,6 +130,14 @@ object YoloUtils {
         return (interArea / (b1a + b2a - interArea + 1e-16f)).coerceIn(0f, 1f)
     }
 
+    /**
+     * Applies non-maximum suppression with a given IoU threshold to a list of [DetectedObjects]
+     *
+     * @param iouThreshold IoU Threshold (0.0 - 1.0)
+     * @param boxes Detection results
+     *
+     * @return Detection results with NMS applied
+     */
     fun nms(iouThreshold: Double, boxes: List<DetectedObjects.DetectedObject>): List<DetectedObjects.DetectedObject> {
         val input = boxes.toMutableList()
         val output = mutableListOf<DetectedObjects.DetectedObject>()

@@ -11,8 +11,6 @@ import ai.djl.nn.*
 import ai.djl.training.ParameterStore
 import ai.djl.util.PairList
 import com.waicool20.djl.util.*
-import java.io.DataInputStream
-import java.io.DataOutputStream
 
 class YoloV3(
     val numClasses: Int = 80,
@@ -193,9 +191,6 @@ class YoloV3(
         )
     }
 
-    /**
-     * @see <a href="https://towardsdatascience.com/calculating-loss-of-yolo-v3-layer-8878bfaaf1ff">Calculating Loss</a>
-     */
     private fun transformOutput(output: NDArray, anchors: NDArray): NDArray {
         // (bs, 3 * (5 + numClasses), size, size)
         var array = output
@@ -207,16 +202,34 @@ class YoloV3(
         array = array.transpose(0, 3, 1, 2, 4)
 
         val gridSize = array.shape[2]
-        val stride = inputShapes[0][2] / gridSize
+
+        /*
+            Creates an nd array with y offsets, size depends on the current grid size. eg. 3x3
+            0 0 0
+            1 1 1
+            2 2 2
+         */
         val gridY = manager.arange(gridSize.toFloat()).repeat(gridSize).reshape(1, 1, gridSize, gridSize)
+
+        /*
+            Creates an nd array with x offsets, size depends on the current grid size. eg. 3x3
+            0 1 2
+            0 1 2
+            0 1 2
+        */
         val gridX = gridY.duplicate().transpose(0, 1, 3, 2)
 
         val anchorsArray = anchors.expandDims(0).reshape(3, 2)
         val anchorW = anchorsArray.get(NDIndex(":, 0:1")).reshape(1, 3, 1, 1)
         val anchorH = anchorsArray.get(NDIndex(":, 1:2")).reshape(1, 3, 1, 1)
 
+        // Transform xy coordinates that are relative to the grid cell to absolute image coordinates
+        // New xy will be the center coordinates of the resulting bounding box
         val x = array.get(NDIndex(":, :, :, :, 0")).ndArrayInternal.sigmoid().add(gridX).div(gridSize).expandDims(4)
         val y = array.get(NDIndex(":, :, :, :, 1")).ndArrayInternal.sigmoid().add(gridY).div(gridSize).expandDims(4)
+
+        // Transform wh coordinates according to the pre-defined anchors
+        // New wh will be full wh of the resulting bounding box
         val w = array.get(NDIndex(":, :, :, :, 2")).exp().mul(anchorW).expandDims(4)
         val h = array.get(NDIndex(":, :, :, :, 3")).exp().mul(anchorH).expandDims(4)
         val p = array.get(NDIndex(":, :, :, :, 4")).ndArrayInternal.sigmoid().expandDims(4)
