@@ -1,6 +1,5 @@
 package com.waicool20.djl.yolo
 
-import ai.djl.modality.cv.output.BoundingBox
 import ai.djl.modality.cv.output.DetectedObjects
 import ai.djl.modality.cv.output.Rectangle
 import ai.djl.modality.cv.translator.ObjectDetectionTranslator
@@ -47,16 +46,19 @@ class YoloTranslator(
             for (j in 0 until output.shape[0]) {
                 val probability = p.getFloat(j).toDouble()
                 if (probability >= threshold) {
+                    val ox = x.getFloat(j).toDouble()
+                    if (ox !in 0.0..1.0) continue
+                    val oy = y.getFloat(j).toDouble()
+                    if (oy !in 0.0..1.0) continue
+                    val ow = w.getFloat(j).toDouble()
+                    if (ow !in 0.0..1.0) continue
+                    val oh = h.getFloat(j).toDouble()
+                    if (oh !in 0.0..1.0) continue
                     objects.add(
                         DetectedObjects.DetectedObject(
                             classes[c.getLong(j).toInt()],
                             probability,
-                            Rectangle(
-                                x.getFloat(j).toDouble(),
-                                y.getFloat(j).toDouble(),
-                                w.getFloat(j).toDouble(),
-                                h.getFloat(j).toDouble()
-                            )
+                            Rectangle(ox, oy, ow, oh)
                         )
                     )
                 }
