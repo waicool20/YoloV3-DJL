@@ -8,7 +8,6 @@ import ai.djl.ndarray.index.NDIndex
 import ai.djl.translate.Pipeline
 import ai.djl.translate.TranslatorContext
 import com.waicool20.djl.util.YoloUtils
-import com.waicool20.djl.util.minus
 
 class YoloTranslator(
     pipeline: Pipeline,
@@ -33,35 +32,23 @@ class YoloTranslator(
             var output = list[i]
             val shape = output.shape
             output = output.reshape(shape[0] * shape[1] * shape[2], shape[3])
-
-            val w = output.get(NDIndex(":, 2"))
-            val h = output.get(NDIndex(":, 3"))
-
-            val x = output.get(NDIndex(":, 0")) - w / 2
-            val y = output.get(NDIndex(":, 1")) - h / 2
-
-            val p = output.get(NDIndex(":, 4"))
-            val c = output.get(NDIndex(":, 5:")).argMax(1)
+            output = output.booleanMask(output.get(NDIndex(":, 4")).gte(threshold))
 
             for (j in 0 until output.shape[0]) {
-                val probability = p.getFloat(j).toDouble()
-                if (probability >= threshold) {
-                    val ox = x.getFloat(j).toDouble()
-                    if (ox !in 0.0..1.0) continue
-                    val oy = y.getFloat(j).toDouble()
-                    if (oy !in 0.0..1.0) continue
-                    val ow = w.getFloat(j).toDouble()
-                    if (ow !in 0.0..1.0) continue
-                    val oh = h.getFloat(j).toDouble()
-                    if (oh !in 0.0..1.0) continue
-                    objects.add(
-                        DetectedObjects.DetectedObject(
-                            classes[c.getLong(j).toInt()],
-                            probability,
-                            Rectangle(ox, oy, ow, oh)
-                        )
-                    )
-                }
+                val detection = output[j].toFloatArray()
+                val ow = detection[2].toDouble()
+                val oh = detection[3].toDouble()
+                val ox = detection[0] - ow / 2
+                val oy = detection[1] - oh / 2
+                if (ox !in 0.0..1.0) continue
+                if (oy !in 0.0..1.0) continue
+                if (ow !in 0.0..1.0) continue
+                if (oh !in 0.0..1.0) continue
+
+                val p = detection[4].toDouble()
+                val c = detection.slice(5..detection.lastIndex)
+                val cMaxIdx = c.indexOf(c.max())
+                objects.add(DetectedObjects.DetectedObject(classes[cMaxIdx], p, Rectangle(ox, oy, ow, oh)))
             }
         }
         val keep = YoloUtils.nms(iouThreshold, objects)
