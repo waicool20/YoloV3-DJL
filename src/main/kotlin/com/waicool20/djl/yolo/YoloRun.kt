@@ -99,10 +99,8 @@ private fun trainYolo() {
     val model = Model.newInstance(MODEL_NAME)
     model.block = yolov3
 
-    var lastEpoch = 0
     try {
         model.load(Paths.get(""), MODEL_NAME)
-        lastEpoch = model.getProperty("Epoch").toInt() + 1
     } catch (e: Exception) {
         logger.warn("No weights found, training new weights (${e.message})")
     }
@@ -111,24 +109,7 @@ private fun trainYolo() {
     trainer.metrics = Metrics()
     val inputShape = Shape(BATCH_SIZE.toLong(), 3, WIDTH.toLong(), HEIGHT.toLong())
     trainer.initialize(inputShape)
-
-    for (epoch in lastEpoch until EPOCH) {
-        for (batch in trainer.iterateDataset(trainDataset)) {
-            EasyTrain.trainBatch(trainer, batch)
-            trainer.step()
-            batch.close()
-        }
-        for (batch in trainer.iterateDataset(testDataset)) {
-            EasyTrain.validateBatch(trainer, batch)
-            batch.close()
-        }
-
-        trainer.notifyListeners { it.onEpoch(trainer) }
-        trainer.model.apply {
-            setProperty("Epoch", epoch.toString())
-            save(Paths.get(""), MODEL_NAME)
-        }
-    }
+    EasyTrain.fit(trainer, EPOCH, trainDataset, testDataset)
     model.save(Paths.get(""), MODEL_NAME)
 }
 
@@ -158,5 +139,5 @@ private fun getTrainingConfig(): TrainingConfig {
     return DefaultTrainingConfig(loss)
         .optOptimizer(optimizer)
         .optDevices(arrayOf(Device.gpu()))
-        .addTrainingListeners(*TrainingListener.Defaults.logging("train-log"))
+        .addTrainingListeners(*TrainingListener.Defaults.logging(""))
 }
