@@ -18,6 +18,13 @@ operator fun NDArray.minus(number: Number): NDArray = sub(number)
 operator fun NDArray.times(array: NDArray): NDArray = mul(array)
 operator fun NDArray.times(number: Number): NDArray = mul(number)
 
+operator fun NDArray.unaryMinus(): NDArray = neg()
+
+operator fun Number.plus(array: NDArray): NDArray = array + this
+operator fun Number.minus(array: NDArray): NDArray = array.neg() + this
+operator fun Number.times(array: NDArray): NDArray = array * this
+operator fun Number.div(array: NDArray): NDArray = array.pow(-1) * this
+
 operator fun NDArray.plusAssign(array: NDArray) {
     addi(array)
 }

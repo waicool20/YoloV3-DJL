@@ -93,7 +93,7 @@ object YoloUtils {
         if (type == IOUType.CIOU) {
             val c = 0.405284735 // 4 / pi^2
             val v = (((w2 / h2).atan() - (w1 / h1).atan()).square() * c + 1e-16).gradDetach()
-            val a = (v / ((iou.neg() + 1) + v)).gradDetach()
+            val a = (v / ((1 - iou) + v)).gradDetach()
             return diou - a * v
         }
         error("Invalid IOU type")
