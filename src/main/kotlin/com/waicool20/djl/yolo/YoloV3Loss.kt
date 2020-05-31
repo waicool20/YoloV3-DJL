@@ -87,7 +87,7 @@ class YoloV3Loss(
             val trueObjMasked = trueObj.booleanMask(trueObjMask)
             val predObjMasked = predObj.booleanMask(trueObjMask)
 
-            val objLoss = bce.evaluate(NDList(predObjMasked), NDList(trueObjMasked))
+            val objLoss = bce.evaluate(NDList(trueObjMasked), NDList(predObjMasked))
 
             val noObjLoss = run {
                 val ignoreMask = ious.lt(ignoreThreshold)
@@ -97,15 +97,15 @@ class YoloV3Loss(
                 val predNoObj = predObj.booleanMask(trueNoObjMask)
 
                 val predExtraNoObj = predObjMasked.booleanMask(ignoreMask)
-                val trueExtraNoObj = predExtraNoObj.zerosLike()
+                val trueExtraNoObj = trueObjMasked.booleanMask(ignoreMask)
 
                 bce.evaluate(
-                    NDList(predNoObj.concat(predExtraNoObj)),
-                    NDList(trueNoObj.concat(trueExtraNoObj))
+                    NDList(trueNoObj.concat(trueExtraNoObj)),
+                    NDList(predNoObj.concat(predExtraNoObj))
                 ) * lambdaNoObj
             }
 
-            val classLoss = bce.evaluate(NDList(predCls), NDList(trueCls))
+            val classLoss = bce.evaluate(NDList(trueCls), NDList(predCls))
 
             var totalLoss = xyLoss + objLoss + noObjLoss + classLoss
             if (whLoss != null) totalLoss = totalLoss + whLoss
