@@ -39,22 +39,21 @@ class YoloV3Loss(
             val trueXY = label.get(NDIndex(label.fEllipsis() + "1:3"))
             val trueWH = label.get(NDIndex(label.fEllipsis() + "3:5"))
             val trueObj = run {
-                val x = (trueXY.get(trueXY.fEllipsis() + 0) * stride).floor()
-                val y = (trueXY.get(trueXY.fEllipsis() + 1) * stride).floor()
+                val x = (trueXY.get(trueXY.fEllipsis() + 0) * stride).floor().toFloatArray()
+                val y = (trueXY.get(trueXY.fEllipsis() + 1) * stride).floor().toFloatArray()
                 val ious = whIOU(trueWH, anchors)
-                val n = ious.argMax(1)
+                val n = ious.argMax(1).toLongArray()
                 manager.zeros(Shape(batches, nAnchors, stride, stride)).apply {
-                    for (b in 0 until ious.shape[0]) {
-                        set(NDIndex(b, n.getLong(b), x.getFloat(b).toLong(), y.getFloat(b).toLong()), 1)
+                    for (b in 0 until ious.shape[0].toInt()) {
+                        set(NDIndex(b.toLong(), n[b], x[b].toLong(), y[b].toLong()), 1)
                     }
                 }
             }
             val trueObjMask = trueObj.toType(DataType.BOOLEAN, false)
             val trueCls = manager.zeros(Shape(batches, nClasses)).apply {
-                val trueClsIndex = label.get(NDIndex(label.fEllipsis() + "0"))
+                val trueClsIndex = label.get(NDIndex(label.fEllipsis() + "0")).toFloatArray()
                 for (b in 0 until batches) {
-                    val i = trueClsIndex.getFloat(b).toLong()
-                    set(NDIndex(b, i), 1)
+                    set(NDIndex(b, trueClsIndex[b.toInt()].toLong()), 1)
                 }
             }
 
