@@ -95,7 +95,7 @@ private fun trainYolo() {
     val trainDataset = getDataset(Dataset.Usage.TRAIN)
     val testDataset = getDataset(Dataset.Usage.TEST)
 
-    val yolov3 = YoloV3(numClasses = 1)
+    val yolov3 = YoloV3(numClasses = 1, train = true)
     val model = Model.newInstance(MODEL_NAME)
     model.block = yolov3
 

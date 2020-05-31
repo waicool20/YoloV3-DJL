@@ -7,7 +7,9 @@ import ai.djl.ndarray.NDManager
 import ai.djl.ndarray.index.NDIndex
 import ai.djl.ndarray.types.DataType
 import ai.djl.ndarray.types.Shape
-import ai.djl.nn.*
+import ai.djl.nn.AbstractBlock
+import ai.djl.nn.LambdaBlock
+import ai.djl.nn.SequentialBlock
 import ai.djl.training.ParameterStore
 import ai.djl.util.PairList
 import com.waicool20.djl.util.*
@@ -30,7 +32,8 @@ class YoloV3(
             16f, 30f,
             33f, 23f
         ),
-    )
+    ),
+    val train: Boolean = false
 ) : AbstractBlock(0) {
     private val skip36Block by lazy {
         SequentialBlock {
@@ -225,17 +228,23 @@ class YoloV3(
 
         // Transform xy coordinates that are relative to the grid cell to absolute image coordinates
         // New xy will be the center coordinates of the resulting bounding box
-        val x = array.get(NDIndex(":, :, :, :, 0")).ndArrayInternal.sigmoid().add(gridX).div(gridSize).expandDims(4)
-        val y = array.get(NDIndex(":, :, :, :, 1")).ndArrayInternal.sigmoid().add(gridY).div(gridSize).expandDims(4)
+        val x = array.get(NDIndex(array.fEllipsis() + 0)).ndArrayInternal.sigmoid()
+            .add(gridX).div(gridSize).expandDims(4)
+        val y = array.get(NDIndex(array.fEllipsis() + 1)).ndArrayInternal.sigmoid()
+            .add(gridY).div(gridSize).expandDims(4)
 
         // Transform wh coordinates according to the pre-defined anchors
         // New wh will be full wh of the resulting bounding box
-        val w = array.get(NDIndex(":, :, :, :, 2")).exp().mul(anchorW).expandDims(4)
-        val h = array.get(NDIndex(":, :, :, :, 3")).exp().mul(anchorH).expandDims(4)
-        val p = array.get(NDIndex(":, :, :, :, 4")).ndArrayInternal.sigmoid().expandDims(4)
-        val c = array.get(NDIndex(":, :, :, :, 5:")).ndArrayInternal.sigmoid()
+        val w = array.get(NDIndex(array.fEllipsis() + 2)).exp().mul(anchorW).expandDims(4)
+        val h = array.get(NDIndex(array.fEllipsis() + 3)).exp().mul(anchorH).expandDims(4)
 
-        return NDArrays.concat(NDList(x, y, w, h, p, c), 4)
+        // Probability and classes, apply sigmoid if we're not using it for training/calculating loss
+        val pc = if (train) {
+            array.get(NDIndex(array.fEllipsis() + "4:"))
+        } else {
+            array.get(NDIndex(array.fEllipsis() + "4:")).ndArrayInternal.sigmoid()
+        }
+        return NDArrays.concat(NDList(x, y, w, h, pc), 4)
     }
 
     override fun getOutputShapes(manager: NDManager, inputShapes: Array<out Shape>): Array<Shape> {
