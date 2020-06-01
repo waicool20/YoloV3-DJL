@@ -38,11 +38,11 @@ private val pipeline = Pipeline(Resize(WIDTH, HEIGHT), ToTensor())
 // Training parameters
 
 private val BATCH_SIZE = 2
-private val EPOCH = 48
+private val EPOCH = 32
 private val IGNORE_THRESHOLD = 0.5
 private val LAMBDA_COORD = 5.0
 private val LAMBDA_NOOBJ = 0.5
-private val LEARNING_RATE = 1e-5f
+private val LEARNING_RATE = 1e-3f
 private val LOSS_TYPE = YoloV3Loss.Type.STANDARD
 private val FOCAL_ALPHA = 0.5
 private val FOCAL_GAMMA = 2.0
@@ -125,8 +125,12 @@ private fun getDataset(usage: Dataset.Usage): RandomAccessDataset {
 }
 
 private fun getTrainingConfig(): TrainingConfig {
+    val tracker = LearningRateTracker.factorTracker()
+        .setStep(250).optFactor(0.9f)
+        .optBaseLearningRate(LEARNING_RATE)
+        .build()
     val optimizer = Adam.builder()
-        .optLearningRateTracker(LearningRateTracker.fixedLearningRate(LEARNING_RATE))
+        .optLearningRateTracker(tracker)
         .build()
     val loss = YoloV3Loss(
         IGNORE_THRESHOLD,
