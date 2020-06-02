@@ -32,6 +32,7 @@ class YoloTranslator(
             var output = list[i]
             val shape = output.shape
             output = output.reshape(shape[0] * shape[1] * shape[2], shape[3])
+            output.set(NDIndex( ":, 4:")) { it.ndArrayInternal.sigmoid() }
             output = output.booleanMask(output.get(NDIndex(":, 4")).gte(threshold))
 
             for (j in 0 until output.shape[0]) {

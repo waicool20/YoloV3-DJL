@@ -32,8 +32,7 @@ class YoloV3(
             16f, 30f,
             33f, 23f
         ),
-    ),
-    val train: Boolean = false
+    )
 ) : AbstractBlock(0) {
     private val skip36Block by lazy {
         SequentialBlock {
@@ -238,12 +237,8 @@ class YoloV3(
         val w = array.get(NDIndex(array.fEllipsis() + 2)).exp().mul(anchorW).expandDims(4)
         val h = array.get(NDIndex(array.fEllipsis() + 3)).exp().mul(anchorH).expandDims(4)
 
-        // Probability and classes, apply sigmoid if we're not using it for training/calculating loss
-        val pc = if (train) {
-            array.get(NDIndex(array.fEllipsis() + "4:"))
-        } else {
-            array.get(NDIndex(array.fEllipsis() + "4:")).ndArrayInternal.sigmoid()
-        }
+        // Probability and classes
+        val pc = array.get(NDIndex(array.fEllipsis() + "4:"))
         return NDArrays.concat(NDList(x, y, w, h, pc), 4)
     }
 
