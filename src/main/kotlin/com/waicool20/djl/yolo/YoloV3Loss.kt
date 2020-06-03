@@ -36,11 +36,11 @@ class YoloV3Loss(
             val stride = prediction.shape[2]
             val nClasses = prediction.shape[4] - 5
 
-            val trueXY = label.get(NDIndex(label.fEllipsis() + "1:3"))
-            val trueWH = label.get(NDIndex(label.fEllipsis() + "3:5"))
+            val trueXY = label.get(NDIndex("..., 1:3"))
+            val trueWH = label.get(NDIndex("..., 3:5"))
             val trueObj = run {
-                val x = (trueXY.get(trueXY.fEllipsis() + 0) * stride).floor().toFloatArray()
-                val y = (trueXY.get(trueXY.fEllipsis() + 1) * stride).floor().toFloatArray()
+                val x = (trueXY.get("..., 0") * stride).floor().toFloatArray()
+                val y = (trueXY.get("..., 1") * stride).floor().toFloatArray()
                 val ious = whIOU(trueWH, anchors)
                 val n = ious.argMax(1).toLongArray()
                 manager.zeros(Shape(batches, nAnchors, stride, stride)).apply {
@@ -51,16 +51,16 @@ class YoloV3Loss(
             }
             val trueObjMask = trueObj.toType(DataType.BOOLEAN, false)
             val trueCls = manager.zeros(Shape(batches, nClasses)).apply {
-                val trueClsIndex = label.get(NDIndex(label.fEllipsis() + "0")).toFloatArray()
+                val trueClsIndex = label.get(NDIndex("..., 0")).toFloatArray()
                 for (b in 0 until batches) {
                     set(NDIndex(b, trueClsIndex[b.toInt()].toLong()), 1)
                 }
             }
 
-            val predXY = prediction.get(NDIndex(prediction.fEllipsis() + "0:2")).booleanMask(trueObjMask)
-            val predWH = prediction.get(NDIndex(prediction.fEllipsis() + "2:4")).booleanMask(trueObjMask)
-            val predObj = prediction.get(NDIndex(prediction.fEllipsis() + "4"))
-            val predCls = prediction.get(NDIndex(prediction.fEllipsis() + "5:")).booleanMask(trueObjMask)
+            val predXY = prediction.get(NDIndex("..., 0:2")).booleanMask(trueObjMask)
+            val predWH = prediction.get(NDIndex("..., 2:4")).booleanMask(trueObjMask)
+            val predObj = prediction.get(NDIndex("..., 4"))
+            val predCls = prediction.get(NDIndex("..., 5:")).booleanMask(trueObjMask)
 
             val boxes1 = predXY.concat(predWH, 1)
             val boxes2 = trueXY.concat(trueWH, 1)

@@ -227,18 +227,18 @@ class YoloV3(
 
         // Transform xy coordinates that are relative to the grid cell to absolute image coordinates
         // New xy will be the center coordinates of the resulting bounding box
-        val x = array.get(NDIndex(array.fEllipsis() + 0)).ndArrayInternal.sigmoid()
+        val x = array.get(NDIndex("..., 0")).ndArrayInternal.sigmoid()
             .add(gridX).div(gridSize).expandDims(4)
-        val y = array.get(NDIndex(array.fEllipsis() + 1)).ndArrayInternal.sigmoid()
+        val y = array.get(NDIndex("..., 1")).ndArrayInternal.sigmoid()
             .add(gridY).div(gridSize).expandDims(4)
 
         // Transform wh coordinates according to the pre-defined anchors
         // New wh will be full wh of the resulting bounding box
-        val w = array.get(NDIndex(array.fEllipsis() + 2)).exp().mul(anchorW).expandDims(4)
-        val h = array.get(NDIndex(array.fEllipsis() + 3)).exp().mul(anchorH).expandDims(4)
+        val w = array.get(NDIndex("..., 2")).exp().mul(anchorW).expandDims(4)
+        val h = array.get(NDIndex("..., 3")).exp().mul(anchorH).expandDims(4)
 
         // Probability and classes
-        val pc = array.get(NDIndex(array.fEllipsis() + "4:"))
+        val pc = array.get(NDIndex("..., 4:"))
         return NDArrays.concat(NDList(x, y, w, h, pc), 4)
     }
 

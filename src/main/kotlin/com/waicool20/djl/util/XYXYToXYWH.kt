@@ -10,13 +10,13 @@ import ai.djl.translate.Transform
  */
 class XYXYToXYWH : Transform {
     override fun transform(array: NDArray): NDArray {
-        val xMin = array.get(NDIndex(array.fEllipsis() + 1))
-        val yMin = array.get(NDIndex(array.fEllipsis() + 2))
-        val xMax = array.get(NDIndex(array.fEllipsis() + 3))
-        val yMax = array.get(NDIndex(array.fEllipsis() + 4))
+        val xMin = array.get(NDIndex("..., 1"))
+        val yMin = array.get(NDIndex("..., 2"))
+        val xMax = array.get(NDIndex("..., 3"))
+        val yMax = array.get(NDIndex("..., 4"))
         return array.apply {
-            set(NDIndex(array.fEllipsis() + 3), xMax - xMin)
-            set(NDIndex(array.fEllipsis() + 4), yMax - yMin)
+            set(NDIndex("..., 3"), xMax - xMin)
+            set(NDIndex("..., 4"), yMax - yMin)
         }
     }
 }

@@ -19,7 +19,7 @@ class YoloTranslator(
     Builder()
         .setPipeline(pipeline)
         .optThreshold(threshold.toFloat())
-        .setClasses(classes)
+        .optSynset(classes)
         .optRescaleSize(rescaleSize.first, rescaleSize.second)
 ) {
     private class Builder : ObjectDetectionTranslator.BaseBuilder<Builder>() {
